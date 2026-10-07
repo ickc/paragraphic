@@ -1,0 +1,90 @@
+# sitegraph
+
+An Obsidian-style graph of how the pages of a static site link to each other.
+
+It reads the site **after** it is rendered, from its HTML, so it does not depend on the site generator: by then links
+have been resolved, includes expanded and output names decided. A generator is described by a few CSS selectors, and
+there are presets for pandoc's default template and for Quarto. It is a post-processing step, so switching generators
+means changing the preset, not the tool.
+
+```sh
+sitegraph build path/to/rendered/site            # pandoc preset, every page is a node
+sitegraph build -c sitegraph.toml                # settings from a file
+```
+
+`build` writes `graph.json` into the site, with `sitegraph.js` and `sitegraph.css` beside it, and prints how many pages
+have no links in or out (`-v` lists them).
+
+## The graph
+
+- **Nodes** are pages: those linked from the `index` page (`selectors.index_links`), or, without an index, every page
+  that has a `selectors.content` element. A draft or an unlisted page is not on the index, so it is not a node.
+- **Links** are the `<a href>`s inside a node's `content` element that resolve to another node, counted. Links in the
+  navigation, footer and listings are outside it. Absolute links to `site-url` count as internal.
+- **One document, several renderings.** A page lists its other renderings (the slides of a talk, its PDF) through
+  `selectors.alternates`, and a link to any of them is a link to the page. The page itself stays the node.
+- Each node carries its `title`, `date`, `categories` and `citations` (pandoc citeproc's `ref-<key>` ids), from which
+  the viewer draws shared-citation edges and category nodes.
+
+```json
+{"version": 1, "groups": ["Math"],
+ "nodes": [{"id": "math/a.html", "title": "…", "date": "September 30th, 2026", "categories": ["Math"], "citations": ["naur1985"]}],
+ "links": [{"source": "math/a.html", "target": "math/b.html", "count": 2}]}
+```
+
+The output is sorted and carries no timestamp, so the same site gives the same bytes.
+
+## sitegraph.toml
+
+All keys are optional. Paths are relative to the file.
+
+```toml
+preset = "quarto"            # or "pandoc" (the default)
+quarto-project = "src"       # read output-dir and website.site-url from its _quarto.yml
+# output-dir = "_site"       # otherwise, the rendered site
+# site-url = "https://example.org"   # $SITE_URL and --site-url override it
+index = "index.html"         # the page whose links are the nodes
+out = "graph.json"
+# Categories with a colour, in priority order. Others are grey.
+groups = ["Math", "LLM"]
+
+[selectors]                  # override any of the preset's
+content = "main"
+```
+
+| Selector     | pandoc                                | quarto                               |
+| ------------ | ------------------------------------- | ------------------------------------ |
+| `content`    | `body`                                | `main#quarto-document-content`       |
+| `title`      | `title`                               | `h1.title`                           |
+| `date`       | `meta[name="dcterms.date"]`           | `#title-block-header .date`          |
+| `categories` | `meta[name="keywords"]`               | `.quarto-category`                   |
+| `alternates` | none                                  | `.quarto-alternate-formats a`        |
+| `citations`  | `#refs .csl-entry[id^=ref-]`          | same                                 |
+| `index_links`| `a`                                   | `.quarto-listing .listing-title a`   |
+
+A selector that matches a `<meta>` reads its `content`, split on commas; anything else, its text.
+
+## The viewer
+
+```html
+<link rel="stylesheet" href="sitegraph.css">
+<div class="sitegraph" data-src="graph.json"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="sitegraph.js"></script>
+```
+
+Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node's size is its number of links, and its
+colour is its categories that are in `groups`: a page in two of them is drawn as a pie of both, a page in none is grey.
+Hovering a node shows it with its neighbours, clicking opens it, and nodes can be dragged and the graph zoomed. Above
+the graph are the legend (click a category to pick out its pages) and three switches: edges between pages that cite
+the same work, categories as nodes of their own, and pages with no links. Below it, the same graph as a list of each
+page's links out and in.
+
+The colours are CSS custom properties, `--sitegraph-1` to `--sitegraph-8` and `--sitegraph-other`, with light and dark
+values. Dark mode follows Quarto's `body.quarto-dark`, `[data-theme="dark"]` on the root, or the system setting.
+
+## Tests
+
+```sh
+pytest sitegraph/tests
+```

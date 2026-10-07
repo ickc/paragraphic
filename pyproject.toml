@@ -1,0 +1,22 @@
+[project]
+name = "sitegraph"
+version = "0.1.0"
+description = "An Obsidian-style graph of how a static site's pages link to each other, read from its rendered HTML"
+readme = "README.md"
+authors = [{ name = "Kolen Cheung", email = "christian.kolen@gmail.com" }]
+requires-python = ">=3.11"
+dependencies = ["beautifulsoup4"]
+
+[project.optional-dependencies]
+# Reading a Quarto project's _quarto.yml (quarto-project in sitegraph.toml).
+quarto = ["pyyaml"]
+
+[project.scripts]
+sitegraph = "sitegraph.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sitegraph"]

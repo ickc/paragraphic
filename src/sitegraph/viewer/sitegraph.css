@@ -1,0 +1,174 @@
+/* sitegraph viewer. Colours are custom properties, light by default, dark
+   under Quarto's body.quarto-dark, [data-theme="dark"], or the system setting.
+
+   The categorical slots are the four of the dataviz reference palette that
+   stay apart in every pair, in both modes and for colour-blind readers
+   (blue, yellow, magenta, green). A scatter of nodes puts every pair side by
+   side, which no more than four hues survive, so `groups` past the fourth
+   fall back to further, weaker slots. */
+.sitegraph {
+  --sitegraph-1: #2a78d6;
+  --sitegraph-2: #eda100;
+  --sitegraph-3: #e87ba4;
+  --sitegraph-4: #008300;
+  --sitegraph-5: #eb6834;
+  --sitegraph-6: #1baf7a;
+  --sitegraph-7: #4a3aa7;
+  --sitegraph-8: #e34948;
+  --sitegraph-other: #b4b3ad;
+  --sitegraph-surface: var(--bs-body-bg, #ffffff);
+  --sitegraph-ink: var(--bs-body-color, #212529);
+  --sitegraph-muted: var(--bs-secondary-color, #6c757d);
+  --sitegraph-border: var(--bs-border-color, #dee2e6);
+  position: relative;
+}
+
+body.quarto-dark .sitegraph,
+:root[data-theme="dark"] .sitegraph {
+  --sitegraph-1: #3987e5;
+  --sitegraph-2: #c98500;
+  --sitegraph-3: #d55181;
+  --sitegraph-4: #008300;
+  --sitegraph-5: #d95926;
+  --sitegraph-6: #199e70;
+  --sitegraph-7: #9085e9;
+  --sitegraph-8: #e66767;
+  --sitegraph-other: #6b6a66;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body:not(.quarto-light) .sitegraph {
+    --sitegraph-1: #3987e5;
+    --sitegraph-2: #c98500;
+    --sitegraph-3: #d55181;
+    --sitegraph-4: #008300;
+    --sitegraph-5: #d95926;
+    --sitegraph-6: #199e70;
+    --sitegraph-7: #9085e9;
+    --sitegraph-8: #e66767;
+    --sitegraph-other: #6b6a66;
+  }
+}
+
+.sitegraph-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+.sitegraph-legend,
+.sitegraph-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  align-items: center;
+}
+.sitegraph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--sitegraph-ink);
+  font: inherit;
+}
+button.sitegraph-legend-item { cursor: pointer; }
+button.sitegraph-legend-item:hover,
+button.sitegraph-legend-item[aria-pressed="true"] { border-color: var(--sitegraph-border); }
+.sitegraph-swatch {
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sitegraph-toggle { cursor: pointer; color: var(--sitegraph-muted); }
+
+.sitegraph-stage {
+  position: relative;
+  height: clamp(420px, 75vh, 900px);
+  border: 1px solid var(--sitegraph-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--sitegraph-surface);
+}
+.sitegraph-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+.sitegraph-svg:active { cursor: grabbing; }
+
+.sitegraph-fill-1 { fill: var(--sitegraph-1); color: var(--sitegraph-1); }
+.sitegraph-fill-2 { fill: var(--sitegraph-2); color: var(--sitegraph-2); }
+.sitegraph-fill-3 { fill: var(--sitegraph-3); color: var(--sitegraph-3); }
+.sitegraph-fill-4 { fill: var(--sitegraph-4); color: var(--sitegraph-4); }
+.sitegraph-fill-5 { fill: var(--sitegraph-5); color: var(--sitegraph-5); }
+.sitegraph-fill-6 { fill: var(--sitegraph-6); color: var(--sitegraph-6); }
+.sitegraph-fill-7 { fill: var(--sitegraph-7); color: var(--sitegraph-7); }
+.sitegraph-fill-8 { fill: var(--sitegraph-8); color: var(--sitegraph-8); }
+.sitegraph-fill-other { fill: var(--sitegraph-other); color: var(--sitegraph-other); }
+
+/* A 1.5px surface ring around each node, and a gap between pie wedges. */
+.sitegraph-node path { stroke: var(--sitegraph-surface); stroke-width: 1; }
+.sitegraph-ring { fill: none; stroke: var(--sitegraph-surface); stroke-width: 1.5; }
+.sitegraph-node { cursor: pointer; outline: none; }
+.sitegraph-node:focus-visible .sitegraph-ring { stroke: var(--sitegraph-ink); stroke-width: 2; }
+.sitegraph-category-mark {
+  fill: var(--sitegraph-surface);
+  stroke: var(--sitegraph-muted);
+  stroke-width: 1.5;
+}
+
+.sitegraph-edge { stroke: var(--sitegraph-ink); stroke-opacity: 0.22; stroke-width: 1; }
+.sitegraph-edge-cite { stroke-dasharray: 4 3; stroke-opacity: 0.3; }
+.sitegraph-edge-category { stroke-dasharray: 1 3; stroke-opacity: 0.25; }
+
+.sitegraph-label {
+  fill: var(--sitegraph-ink);
+  paint-order: stroke;
+  stroke: var(--sitegraph-surface);
+  stroke-linejoin: round;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.sitegraph-labelled .sitegraph-label,
+.sitegraph-zoomed .sitegraph-label { opacity: 1; }
+.sitegraph-node-category .sitegraph-label { fill: var(--sitegraph-muted); font-style: italic; }
+
+/* A hovered node with its neighbours, or a category's posts. */
+.sitegraph-focusing .sitegraph-node { opacity: 0.15; transition: opacity 0.15s; }
+.sitegraph-focusing .sitegraph-edge { stroke-opacity: 0.05; }
+.sitegraph-focusing .sitegraph-node.sitegraph-near { opacity: 1; }
+.sitegraph-focusing .sitegraph-near .sitegraph-label { opacity: 1; }
+.sitegraph-focusing .sitegraph-edge.sitegraph-near { stroke-opacity: 0.6; stroke-width: 1.5; }
+
+.sitegraph-tooltip {
+  position: absolute;
+  z-index: 1;
+  max-width: 22rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--sitegraph-border);
+  border-radius: 4px;
+  background: var(--sitegraph-surface);
+  color: var(--sitegraph-ink);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+}
+.sitegraph-tooltip div div { color: var(--sitegraph-muted); }
+
+.sitegraph-list { margin-top: 1rem; }
+.sitegraph-list summary { cursor: pointer; }
+.sitegraph-list li { margin-bottom: 0.4rem; }
+.sitegraph-list li div { font-size: 0.9rem; color: var(--sitegraph-muted); }
+.sitegraph-error { color: var(--sitegraph-muted); }

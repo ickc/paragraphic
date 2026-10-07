@@ -1,20 +1,23 @@
 /* sitegraph viewer. Colours are custom properties, light by default, dark
    under Quarto's body.quarto-dark, [data-theme="dark"], or the system setting.
 
-   The categorical slots are the four of the dataviz reference palette that
-   stay apart in every pair, in both modes and for colour-blind readers
-   (blue, yellow, magenta, green). A scatter of nodes puts every pair side by
-   side, which no more than four hues survive, so `groups` past the fourth
-   fall back to further, weaker slots. */
+   Twelve categorical colours, Tableau 10's order with its grey swapped out
+   (grey is "other") and two more. A category's colour is its rank by number
+   of pages, so it keeps it however many the reader turns on. The dark values
+   change only the slots too dark to see on a dark background. */
 .sitegraph {
-  --sitegraph-1: #2a78d6;
-  --sitegraph-2: #eda100;
-  --sitegraph-3: #e87ba4;
-  --sitegraph-4: #008300;
-  --sitegraph-5: #eb6834;
-  --sitegraph-6: #1baf7a;
-  --sitegraph-7: #4a3aa7;
-  --sitegraph-8: #e34948;
+  --sitegraph-1: #4e79a7;
+  --sitegraph-2: #f28e2b;
+  --sitegraph-3: #e15759;
+  --sitegraph-4: #76b7b2;
+  --sitegraph-5: #59a14f;
+  --sitegraph-6: #edc948;
+  --sitegraph-7: #b07aa1;
+  --sitegraph-8: #ff9da7;
+  --sitegraph-9: #9c755f;
+  --sitegraph-10: #2f4b7c;
+  --sitegraph-11: #bcbd22;
+  --sitegraph-12: #5e3c99;
   --sitegraph-other: #b4b3ad;
   --sitegraph-surface: var(--bs-body-bg, #ffffff);
   --sitegraph-ink: var(--bs-body-color, #212529);
@@ -25,40 +28,29 @@
 
 body.quarto-dark .sitegraph,
 :root[data-theme="dark"] .sitegraph {
-  --sitegraph-1: #3987e5;
-  --sitegraph-2: #c98500;
-  --sitegraph-3: #d55181;
-  --sitegraph-4: #008300;
-  --sitegraph-5: #d95926;
-  --sitegraph-6: #199e70;
-  --sitegraph-7: #9085e9;
-  --sitegraph-8: #e66767;
+  --sitegraph-9: #b9917a;
+  --sitegraph-10: #7f9fd1;
+  --sitegraph-12: #a38fd6;
   --sitegraph-other: #6b6a66;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body:not(.quarto-light) .sitegraph {
-    --sitegraph-1: #3987e5;
-    --sitegraph-2: #c98500;
-    --sitegraph-3: #d55181;
-    --sitegraph-4: #008300;
-    --sitegraph-5: #d95926;
-    --sitegraph-6: #199e70;
-    --sitegraph-7: #9085e9;
-    --sitegraph-8: #e66767;
+    --sitegraph-9: #b9917a;
+    --sitegraph-10: #7f9fd1;
+    --sitegraph-12: #a38fd6;
     --sitegraph-other: #6b6a66;
   }
 }
 
 .sitegraph-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
 }
+.sitegraph-row,
 .sitegraph-legend,
 .sitegraph-toggles {
   display: flex;
@@ -66,6 +58,26 @@ body.quarto-dark .sitegraph,
   gap: 0.25rem 1rem;
   align-items: center;
 }
+.sitegraph-row { gap: 0.5rem 1.5rem; }
+.sitegraph-search {
+  flex: 1 1 14rem;
+  max-width: 24rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--sitegraph-border);
+  border-radius: 4px;
+  background: var(--sitegraph-surface);
+  color: var(--sitegraph-ink);
+  font: inherit;
+}
+.sitegraph-search.sitegraph-no-match { border-color: var(--sitegraph-3); }
+.sitegraph-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--sitegraph-muted);
+}
+.sitegraph-slider input { width: 8rem; accent-color: var(--sitegraph-1); }
+.sitegraph-colour-count { min-width: 1.5em; color: var(--sitegraph-ink); }
 .sitegraph-legend-item {
   display: inline-flex;
   align-items: center;
@@ -114,6 +126,10 @@ button.sitegraph-legend-item[aria-pressed="true"] { border-color: var(--sitegrap
 .sitegraph-fill-6 { fill: var(--sitegraph-6); color: var(--sitegraph-6); }
 .sitegraph-fill-7 { fill: var(--sitegraph-7); color: var(--sitegraph-7); }
 .sitegraph-fill-8 { fill: var(--sitegraph-8); color: var(--sitegraph-8); }
+.sitegraph-fill-9 { fill: var(--sitegraph-9); color: var(--sitegraph-9); }
+.sitegraph-fill-10 { fill: var(--sitegraph-10); color: var(--sitegraph-10); }
+.sitegraph-fill-11 { fill: var(--sitegraph-11); color: var(--sitegraph-11); }
+.sitegraph-fill-12 { fill: var(--sitegraph-12); color: var(--sitegraph-12); }
 .sitegraph-fill-other { fill: var(--sitegraph-other); color: var(--sitegraph-other); }
 
 /* A 1.5px surface ring around each node, and a gap between pie wedges. */
@@ -140,15 +156,13 @@ button.sitegraph-legend-item[aria-pressed="true"] { border-color: var(--sitegrap
   opacity: 0;
   transition: opacity 0.15s;
 }
-.sitegraph-labelled .sitegraph-label,
-.sitegraph-zoomed .sitegraph-label { opacity: 1; }
+.sitegraph-labelled .sitegraph-label { opacity: 1; }
 .sitegraph-node-category .sitegraph-label { fill: var(--sitegraph-muted); font-style: italic; }
 
 /* A hovered node with its neighbours, or a category's posts. */
 .sitegraph-focusing .sitegraph-node { opacity: 0.15; transition: opacity 0.15s; }
 .sitegraph-focusing .sitegraph-edge { stroke-opacity: 0.05; }
 .sitegraph-focusing .sitegraph-node.sitegraph-near { opacity: 1; }
-.sitegraph-focusing .sitegraph-near .sitegraph-label { opacity: 1; }
 .sitegraph-focusing .sitegraph-edge.sitegraph-near { stroke-opacity: 0.6; stroke-width: 1.5; }
 
 .sitegraph-tooltip {

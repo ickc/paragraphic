@@ -54,7 +54,8 @@ def load_config(path: Path | None, args: argparse.Namespace) -> tuple[Config, Pa
         selectors=selectors_from(preset, raw.get("selectors", {})),
         site_url=site_url,
         index=raw.get("index"),
-        groups=list(raw.get("groups", [])),
+        uncoloured=list(raw.get("uncoloured", [])),
+        colours=int(raw.get("colours", 7)),
     )
     out = Path(output_dir) / (args.out or raw.get("out", "graph.json"))
     return config, out

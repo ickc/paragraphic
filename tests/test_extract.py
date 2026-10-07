@@ -91,7 +91,7 @@ def test_metadata_and_citations(tmp_path):
             '<div id="refs"><div class="csl-entry" id="ref-naur1985">Naur</div>'
             '<div class="csl-entry" id="ref-knuth1984">Knuth</div></div>')
     write(tmp_path, {"a.html": page(body, title="The title – Site")})
-    [node] = graph(tmp_path, groups=["Math"])["nodes"]
+    [node] = graph(tmp_path)["nodes"]
     assert node == {"id": "a.html", "title": "The title", "date": "September 30th, 2026",
                     "categories": ["Math", "LLM"], "citations": ["knuth1984", "naur1985"],
                     "external": [], "sources": ["cite:knuth1984", "cite:naur1985"]}
@@ -112,11 +112,11 @@ def test_cli_with_quarto_project_writes_graph_and_viewer(tmp_path):
         "a.html": page('<a href="https://example.org/b.html">b</a>'),
         "b.html": page(""),
     })
-    (tmp_path / "sitegraph.toml").write_text('quarto-project = "src"\ngroups = ["Math"]\n')
+    (tmp_path / "sitegraph.toml").write_text('quarto-project = "src"\ncolours = 3\n')
     main(["build", "-c", str(tmp_path / "sitegraph.toml")])
     out = project / "docs"
     g = json.loads((out / "graph.json").read_text())
-    assert g["groups"] == ["Math"]
+    assert g["colours"] == 3
     assert edges(g) == {("a.html", "b.html"): 1}
     assert (out / "sitegraph.js").is_file() and (out / "sitegraph.css").is_file()
 
@@ -158,3 +158,18 @@ def test_sources_join_a_citation_and_a_link_to_the_same_work(tmp_path):
     assert nodes["cites.html"]["sources"] == ["cite:naur1985"]
     assert nodes["links.html"]["sources"] == ["cite:naur1985", "url:https://example.com/essay"]
     assert nodes["other.html"]["sources"] == ["url:https://example.com/essay"]
+
+
+def test_groups_are_categories_by_page_count_without_the_uncoloured(tmp_path):
+    def cats(*names):
+        return "".join(f'<div class="quarto-category">{n}</div>' for n in names)
+    write(tmp_path, {
+        "a.html": page(cats("Math", "Talk")),
+        "b.html": page(cats("Math", "LLM", "Talk")),
+        "c.html": page(cats("Ethics", "LLM", "Talk")),
+        "d.html": page(cats("Agents")),
+    })
+    g = graph(tmp_path, uncoloured=["Talk"])
+    # Most pages first, ties by name.
+    assert g["groups"] == ["LLM", "Math", "Agents", "Ethics"]
+    assert g["colours"] == 7

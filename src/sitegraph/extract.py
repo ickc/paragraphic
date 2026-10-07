@@ -74,8 +74,11 @@ class Config:
     # The page (relative to output_dir) whose `index_links` are the nodes.
     # Without one, every page with `content` is a node.
     index: str | None = None
-    # Categories that get a colour in the viewer, in order of priority.
-    groups: list[str] = field(default_factory=list)
+    # Categories that never get a colour: ones that say what form a page
+    # takes rather than what it is about.
+    uncoloured: list[str] = field(default_factory=list)
+    # How many categories the viewer colours at first; the reader can change it.
+    colours: int = 7
 
 
 @dataclass
@@ -246,7 +249,13 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
 
     return {
         "version": 1,
-        "groups": list(config.groups),
+        # Every category that can be coloured, most pages first, so the
+        # viewer colours the first `colours` of them.
+        "groups": [c for c, _ in sorted(
+            Counter(c for p in nodes for c in pages[p].categories
+                    if c not in config.uncoloured).items(),
+            key=lambda item: (-item[1], item[0]))],
+        "colours": config.colours,
         "nodes": [
             {
                 "id": p,

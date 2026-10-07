@@ -4,11 +4,11 @@
 (function () {
   "use strict";
 
-  const SLOTS = 8;
-  const LABEL_ZOOM = 2; // zoomed in this far, every post is labelled
-  const LABELLED = 6; // the best-connected posts are labelled at any zoom
+  const SLOTS = 12; // colours in sitegraph.css
+  const MAX_SLICES = 3; // a dot shows at most this many of its categories
   const LABEL_SIZE = 13; // px on screen, whatever the zoom
-  const LABEL_CHARS = 36;
+  const LINE_CHARS = 28; // a label wraps onto a second line, then is cut
+  const STORE = "sitegraph:colours";
 
   function el(tag, attrs, ...children) {
     const node = document.createElement(tag);
@@ -24,6 +24,38 @@
     return a < b ? a + "\u0000" + b : b + "\u0000" + a;
   }
 
+  // A title as at most two lines, broken between words.
+  function wrap(title) {
+    const lines = [""];
+    for (const word of title.split(/\s+/)) {
+      const last = lines.length - 1;
+      if (!lines[last] || (lines[last] + " " + word).length <= LINE_CHARS) {
+        lines[last] = lines[last] ? lines[last] + " " + word : word;
+      } else if (lines.length < 2) {
+        lines.push(word);
+      } else {
+        lines[last] += " " + word;
+      }
+    }
+    if (lines.length === 2 && lines[1].length > LINE_CHARS) {
+      lines[1] = lines[1].slice(0, LINE_CHARS - 1).trimEnd() + "…";
+    }
+    return lines;
+  }
+
+  function stored(fallback) {
+    try {
+      const v = window.localStorage.getItem(STORE);
+      return v === null ? fallback : Number(v);
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function store(v) {
+    try { window.localStorage.setItem(STORE, String(v)); } catch (e) { /* private mode */ }
+  }
+
   async function init(root) {
     const src = new URL(root.dataset.src, document.baseURI);
     let data;
@@ -37,15 +69,7 @@
     }
 
     // --- the data --------------------------------------------------------
-    const slot = new Map(data.groups.slice(0, SLOTS).map((g, i) => [g, i + 1]));
-    const posts = data.nodes.map((n) => {
-      const colours = n.categories.filter((c) => slot.has(c))
-        .sort((a, b) => slot.get(a) - slot.get(b)).map((c) => slot.get(c));
-      return {
-        ...n, kind: "post", url: new URL(n.id, src).href,
-        colours: colours.length ? colours : ["other"],
-      };
-    });
+    const posts = data.nodes.map((n) => ({ ...n, kind: "post", url: new URL(n.id, src).href }));
     const byId = new Map(posts.map((p) => [p.id, p]));
     const out = new Map(posts.map((p) => [p.id, []]));
     const into = new Map(posts.map((p) => [p.id, []]));
@@ -53,8 +77,7 @@
       out.get(l.source).push(byId.get(l.target));
       into.get(l.target).push(byId.get(l.source));
     }
-    const neighbours = (p) => new Set([...out.get(p.id), ...into.get(p.id)]);
-    for (const p of posts) p.degree = neighbours(p).size;
+    for (const p of posts) p.degree = new Set([...out.get(p.id), ...into.get(p.id)]).size;
 
     // Undirected, one edge per pair.
     const linkPairs = new Map();
@@ -64,8 +87,8 @@
     }
     // Posts that cite or link the same source, but do not link each other.
     // A source is `cite:<key>` or `url:<URL>` (see sitegraph/README.md).
-    const sourceName = (src) => src.startsWith("cite:") ? src.slice(5)
-      : src.slice(4).replace(/^https?:\/\//, "");
+    const sourceName = (s) => s.startsWith("cite:") ? s.slice(5)
+      : s.slice(4).replace(/^https?:\/\//, "");
     const sourcePairs = [];
     const sharing = new Map(posts.map((p) => [p.id, []]));
     for (let i = 0; i < posts.length; i++) {
@@ -79,40 +102,60 @@
       }
     }
     const categories = [...new Set(posts.flatMap((p) => p.categories))].sort();
-
-    const labelled = new Set([...posts].sort((a, b) => b.degree - a.degree)
-      .slice(0, LABELLED).map((p) => p.id));
-    const short = (t) => (t.length > LABEL_CHARS ? t.slice(0, LABEL_CHARS - 1).trimEnd() + "…" : t);
+    // data.groups is every colourable category, most posts first. A
+    // category's colour is its rank, so turning more on never repaints one.
+    const maxColours = Math.min(SLOTS, data.groups.length);
+    const clampColours = (v) => Math.max(0, Math.min(maxColours, Math.round(v) || 0));
+    const rank = new Map(data.groups.slice(0, SLOTS).map((g, i) => [g, i + 1]));
 
     // --- the page --------------------------------------------------------
-    const state = { sources: false, categories: false, orphans: true, focus: null };
+    const state = {
+      sources: false, categories: false, orphans: true,
+      focus: null, query: "", hovered: null,
+      colours: clampColours(stored(data.colours ?? 7)),
+    };
+    const search = el("input", {
+      type: "search", class: "sitegraph-search", placeholder: "Find a post",
+      "aria-label": "Find a post by its title",
+      on: {
+        input: (e) => { state.query = e.target.value.trim().toLowerCase(); applyHighlight(); },
+        keydown: (e) => {
+          if (e.key === "Enter") { e.preventDefault(); zoomTo(matches()); }
+          if (e.key === "Escape") { e.target.value = ""; state.query = ""; applyHighlight(); }
+        },
+      },
+    });
+    const count = el("output", { class: "sitegraph-colour-count" }, String(state.colours));
+    const slider = el("input", {
+      type: "range", min: 0, max: maxColours, step: 1, value: state.colours,
+      "aria-label": "Number of categories with a colour",
+      on: {
+        input: (e) => {
+          state.colours = clampColours(e.target.value);
+          count.value = String(state.colours);
+          store(state.colours);
+          colourise();
+        },
+      },
+    });
     const legend = el("div", { class: "sitegraph-legend", role: "group", "aria-label": "Categories" });
     const toggle = (key, label) => el("label", { class: "sitegraph-toggle" },
       el("input", {
         type: "checkbox", checked: state[key],
         on: { change: (e) => { state[key] = e.target.checked; draw(); } },
       }), " " + label);
-    const controls = el("div", { class: "sitegraph-controls" }, legend,
-      el("div", { class: "sitegraph-toggles" },
-        toggle("sources", "Shared sources"),
-        toggle("categories", "Categories as nodes"),
-        toggle("orphans", "Unlinked posts")));
+    const controls = el("div", { class: "sitegraph-controls" },
+      el("div", { class: "sitegraph-row" }, search,
+        el("label", { class: "sitegraph-slider" }, "Colours ", slider, " ", count),
+        el("div", { class: "sitegraph-toggles" },
+          toggle("sources", "Shared sources"),
+          toggle("categories", "Categories as nodes"),
+          toggle("orphans", "Unlinked posts"))),
+      legend);
     const tooltip = el("div", { class: "sitegraph-tooltip", role: "status", hidden: true });
     const stage = el("div", { class: "sitegraph-stage" }, tooltip);
     const list = el("details", { class: "sitegraph-list" }, el("summary", {}, "The graph as a list"));
     root.append(controls, stage, list);
-
-    const swatch = (cls) => el("span", { class: "sitegraph-swatch " + cls, "aria-hidden": "true" });
-    const legendItems = [...slot.keys()].map((g) => [g, "sitegraph-fill-" + slot.get(g)]);
-    if (posts.some((p) => p.colours[0] === "other")) legendItems.push([null, "sitegraph-fill-other"]);
-    for (const [g, cls] of legendItems) {
-      legend.append(g === null
-        ? el("span", { class: "sitegraph-legend-item" }, swatch(cls), "Other")
-        : el("button", {
-          type: "button", class: "sitegraph-legend-item", "aria-pressed": "false",
-          on: { click: () => setFocus(state.focus === g ? null : g) },
-        }, swatch(cls), g));
-    }
 
     // The list view: every post with its links out and in.
     const titled = [...posts].sort((a, b) => a.title.localeCompare(b.title));
@@ -139,8 +182,8 @@
     const zoom = d3.zoom().scaleExtent([0.2, 6]).on("zoom", (e) => {
       transform = e.transform;
       view.attr("transform", transform);
-      svg.classed("sitegraph-zoomed", transform.k >= LABEL_ZOOM);
       scaleLabels();
+      schedule();
     });
     svg.call(zoom).on("dblclick.zoom", null);
 
@@ -154,7 +197,9 @@
       const ids = new Set(shown.map((p) => p.id));
       const ns = [...shown];
       const es = [];
-      for (const { a, b } of linkPairs.values()) es.push({ source: a, target: b, kind: "link" });
+      for (const { a, b } of linkPairs.values()) {
+        if (ids.has(a) && ids.has(b)) es.push({ source: a, target: b, kind: "link" });
+      }
       if (state.sources) {
         for (const c of sourcePairs) {
           if (ids.has(c.a) && ids.has(c.b)) {
@@ -190,13 +235,16 @@
       const aspect = height / width;
       simulation = d3.forceSimulation(nodes)
         .force("link", d3.forceLink(edges).id((n) => n.id)
-          .distance((e) => (e.kind === "link" ? 70 : 90))
-          .strength((e) => (e.kind === "link" ? 0.4 : e.kind === "source" ? 0.08 : 0.15)))
-        .force("charge", d3.forceManyBody().strength(-340))
-        .force("collide", d3.forceCollide((n) => radius(n) + 6))
-        .force("x", d3.forceX().strength(0.06 * Math.max(1, aspect)))
-        .force("y", d3.forceY().strength(0.06 * Math.max(1, 1 / aspect)))
-        .on("tick", ticked)
+          .distance((e) => (e.kind === "link" ? 85 : 100))
+          .strength((e) => (e.kind === "link" ? 0.35 : e.kind === "source" ? 0.06 : 0.12)))
+        // Repulsion reaches only so far, and a post with no links is pulled
+        // in harder, so the few unlinked posts do not drift to the edge and
+        // shrink everything else when the graph is fitted to the frame.
+        .force("charge", d3.forceManyBody().strength(-520).distanceMax(320))
+        .force("collide", d3.forceCollide((n) => radius(n) + 10))
+        .force("x", d3.forceX().strength((n) => (n.degree ? 0.04 : 0.12) * Math.max(1, aspect) ** 2))
+        .force("y", d3.forceY().strength((n) => (n.degree ? 0.04 : 0.12) * Math.max(1, 1 / aspect) ** 2))
+        .on("tick", () => { ticked(); schedule(); })
         .stop();
       // Lay out before the first paint, so the page does not open on a
       // writhing graph; dragging reheats it.
@@ -217,7 +265,7 @@
         .attr("role", (n) => (n.kind === "post" ? "link" : "button"))
         .attr("aria-label", (n) => (n.kind === "post" ? n.title : "Category: " + n.title))
         .on("pointerenter focus", (e, n) => hover(n, e))
-        .on("pointermove", (e, n) => placeTooltip(e))
+        .on("pointermove", (e) => placeTooltip(e))
         .on("pointerleave blur", () => hover(null))
         .on("click", (e, n) => activate(n))
         .on("keydown", (e, n) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(n); } })
@@ -225,8 +273,37 @@
           .on("start", (e, n) => { if (!e.active) simulation.alphaTarget(0.25).restart(); n.fx = n.x; n.fy = n.y; })
           .on("drag", (e, n) => { n.fx = e.x; n.fy = e.y; })
           .on("end", (e, n) => { if (!e.active) simulation.alphaTarget(0); n.fx = null; n.fy = null; }));
-      added.filter((n) => n.kind === "post").each(function (n) {
-        const g = d3.select(this);
+      added.append("g").attr("class", "sitegraph-mark");
+      added.filter((n) => n.kind === "category").select(".sitegraph-mark").append("rect")
+        .attr("x", -5).attr("y", -5).attr("width", 10).attr("height", 10).attr("rx", 2)
+        .attr("class", "sitegraph-category-mark");
+      const text = added.append("text").attr("class", "sitegraph-label").attr("text-anchor", "middle");
+      text.each(function (n) {
+        const t = d3.select(this);
+        wrap(n.title).forEach((line, i) => {
+          t.append("tspan").attr("x", 0).attr("dy", i ? "1.15em" : 0).text(line);
+        });
+      });
+      text.append("title").text((n) => n.title);
+
+      colourise();
+      scaleLabels();
+      ticked();
+      if (!fitted) { svg.call(zoom.transform, fit(nodes, 1.5)); fitted = true; }
+      applyHighlight();
+      simulation.alpha(0.05).restart();
+    }
+
+    // The dots' colours and the legend, for the first state.colours groups.
+    function colourise() {
+      const slot = (c) => { const r = rank.get(c); return r && r <= state.colours ? r : 0; };
+      for (const p of posts) {
+        const own = p.categories.filter(slot).sort((a, b) => slot(a) - slot(b)).slice(0, MAX_SLICES);
+        p.colours = own.length ? own.map(slot) : ["other"];
+      }
+      gNodes.selectAll("g.sitegraph-node-post").each(function (n) {
+        const g = d3.select(this).select(".sitegraph-mark");
+        g.selectAll("*").remove();
         const r = radius(n);
         if (n.colours.length === 1) {
           g.append("circle").attr("r", r).attr("class", "sitegraph-fill-" + n.colours[0]);
@@ -236,20 +313,15 @@
         }
         g.append("circle").attr("r", r).attr("class", "sitegraph-ring");
       });
-      added.filter((n) => n.kind === "category").append("rect")
-        .attr("x", -5).attr("y", -5).attr("width", 10).attr("height", 10).attr("rx", 2)
-        .attr("class", "sitegraph-category-mark");
-      added.append("text").attr("class", "sitegraph-label")
-        .attr("text-anchor", "middle").text((n) => short(n.title))
-        .append("title").text((n) => n.title);
-      gNodes.selectAll("g.sitegraph-node")
-        .classed("sitegraph-labelled", (n) => n.kind === "category" || labelled.has(n.id));
-      scaleLabels();
 
-      ticked();
-      if (!fitted) { fit(); fitted = true; }
-      setFocus(state.focus);
-      simulation.alpha(0.05).restart();
+      const swatch = (cls) => el("span", { class: "sitegraph-swatch " + cls, "aria-hidden": "true" });
+      legend.replaceChildren(...data.groups.slice(0, state.colours).map((g) => el("button", {
+        type: "button", class: "sitegraph-legend-item", "aria-pressed": String(state.focus === g),
+        on: { click: () => { state.focus = state.focus === g ? null : g; colourise(); applyHighlight(); } },
+      }, swatch("sitegraph-fill-" + rank.get(g)), g)));
+      if (posts.some((p) => p.colours[0] === "other")) {
+        legend.append(el("span", { class: "sitegraph-legend-item" }, swatch("sitegraph-fill-other"), "Other"));
+      }
     }
 
     // Labels keep their size on screen as the graph is zoomed.
@@ -258,7 +330,7 @@
       gNodes.selectAll("text.sitegraph-label")
         .attr("font-size", LABEL_SIZE / k)
         .attr("stroke-width", 3 / k)
-        .attr("dy", (n) => radius(n) + (LABEL_SIZE + 2) / k);
+        .attr("y", (n) => radius(n) + LABEL_SIZE / k);
     }
 
     function ticked() {
@@ -274,49 +346,119 @@
       svg.attr("viewBox", [-width / 2, -height / 2, width, height]);
     }
 
-    function fit() {
-      const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
+    // Zoom to show a set of nodes, no closer than maxK.
+    function fit(set, maxK) {
+      if (!set.length) return;
+      const xs = set.map((n) => n.x), ys = set.map((n) => n.y);
       // Room for a label either side of the outermost dots, in screen pixels.
-      const padX = Math.min(130, width / 10), padY = 40;
-      const w = Math.max(...xs) - Math.min(...xs);
-      const h = Math.max(...ys) - Math.min(...ys);
-      const k = Math.min(1.5, (width - 2 * padX) / w, (height - 2 * padY) / h);
+      const padX = Math.min(130, width / 10), padY = 50;
+      const w = Math.max(...xs) - Math.min(...xs) || 1;
+      const h = Math.max(...ys) - Math.min(...ys) || 1;
+      const k = Math.min(maxK, (width - 2 * padX) / w, (height - 2 * padY) / h);
       const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
       const cy = (Math.max(...ys) + Math.min(...ys)) / 2;
-      svg.call(zoom.transform, d3.zoomIdentity.scale(k).translate(-cx, -cy));
+      return d3.zoomIdentity.scale(k).translate(-cx, -cy);
     }
 
-    // Pick out a set of nodes: a hovered node and its neighbours, or a
-    // category's posts. Everything else is dimmed.
-    function highlight(set) {
-      svg.classed("sitegraph-focusing", !!set);
-      gNodes.selectAll("g.sitegraph-node").classed("sitegraph-near", (n) => !!set && set.has(n.id));
-      gEdges.selectAll("line").classed("sitegraph-near",
-        (e) => !!set && set.has(e.source.id) && set.has(e.target.id));
+    function zoomTo(set) {
+      const t = fit(set, 2);
+      if (t) svg.transition().duration(400).call(zoom.transform, t);
     }
 
-    function setFocus(name) {
-      state.focus = name;
-      for (const b of legend.querySelectorAll("button")) {
-        b.setAttribute("aria-pressed", String(b.textContent === name));
+    const matches = () => (state.query
+      ? nodes.filter((n) => n.title.toLowerCase().includes(state.query)) : []);
+
+    // What is picked out, most specific first: the hovered node and its
+    // neighbours, the posts matching the search, or a category's posts.
+    // Everything else is dimmed.
+    // `first` are labelled before the rest; `forced` are labelled even over
+    // another label: only ever one node, the hovered one or a lone match.
+    let first = new Set(), forced = new Set(), near = null;
+    function applyHighlight() {
+      first = new Set();
+      forced = new Set();
+      near = null;
+      if (state.hovered) {
+        const n = state.hovered;
+        near = new Set([n.id]);
+        forced.add(n.id);
+        for (const e of edges) {
+          if (e.source.id === n.id) near.add(e.target.id);
+          if (e.target.id === n.id) near.add(e.source.id);
+        }
+      } else if (state.query) {
+        near = new Set(matches().map((n) => n.id));
+        first = near;
+        if (near.size === 1) forced = near;
+      } else if (state.focus) {
+        near = new Set(nodes.filter((n) =>
+          (n.kind === "post" && n.categories.includes(state.focus)) || n.id === "category:" + state.focus)
+          .map((n) => n.id));
       }
-      highlight(name ? new Set(nodes.filter((n) =>
-        (n.kind === "post" && n.categories.includes(name)) || n.id === "category:" + name)
-        .map((n) => n.id)) : null);
+      svg.classed("sitegraph-focusing", !!near);
+      search.classList.toggle("sitegraph-no-match", !!state.query && !near.size);
+      gNodes.selectAll("g.sitegraph-node").classed("sitegraph-near", (n) => !!near && near.has(n.id));
+      gEdges.selectAll("line").classed("sitegraph-near",
+        (e) => !!near && near.has(e.source.id) && near.has(e.target.id));
+      placeLabels();
+    }
+
+    // Label as many nodes as fit without overlapping: the picked-out ones
+    // first, then the best connected. Zooming in makes room for more.
+    const sizes = new Map();
+    function placeLabels() {
+      const k = transform.k;
+      const screen = (n) => {
+        const [x, y] = transform.apply([n.x, n.y]);
+        return [x + width / 2, y + height / 2];
+      };
+      const size = (n, textEl) => {
+        if (!sizes.has(n.id)) {
+          const b = textEl.getBBox();
+          sizes.set(n.id, [b.width * k, b.height * k]);
+        }
+        return sizes.get(n.id);
+      };
+      const order = nodes.filter((n) => !near || near.has(n.id)).sort((a, b) =>
+        (forced.has(b.id) - forced.has(a.id)) || (first.has(b.id) - first.has(a.id))
+        || ((b.kind === "category") - (a.kind === "category"))
+        || (b.degree - a.degree) || a.title.localeCompare(b.title));
+      // Labels avoid each other; where one crosses a dot, its halo keeps it
+      // readable.
+      const taken = [];
+      const overlaps = (b) => taken.some((t) => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
+      const shown = new Set();
+      const texts = new Map();
+      gNodes.selectAll("g.sitegraph-node").each(function (n) { texts.set(n.id, this.querySelector("text")); });
+      for (const n of order) {
+        const [x, y] = screen(n);
+        const [w, h] = size(n, texts.get(n.id));
+        const top = y + radius(n) * k + 2;
+        const box = [x - w / 2 - 2, top, x + w / 2 + 2, top + h];
+        const inside = box[0] >= 0 && box[2] <= width && box[1] >= 0 && box[3] <= height;
+        if (forced.has(n.id) || (inside && !overlaps(box))) {
+          shown.add(n.id);
+          taken.push(box);
+        }
+      }
+      gNodes.selectAll("g.sitegraph-node").classed("sitegraph-labelled", (n) => shown.has(n.id));
+    }
+
+    // Once per frame, however many ticks or zoom events ask.
+    let pending = false;
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => { pending = false; placeLabels(); });
     }
 
     function hover(n, event) {
+      state.hovered = n;
+      applyHighlight();
       if (!n) {
         tooltip.hidden = true;
-        setFocus(state.focus);
         return;
       }
-      const set = new Set([n.id]);
-      for (const e of edges) {
-        if (e.source.id === n.id) set.add(e.target.id);
-        if (e.target.id === n.id) set.add(e.source.id);
-      }
-      highlight(set);
       if (n.kind === "post") {
         const o = out.get(n.id).length, i = into.get(n.id).length;
         tooltip.replaceChildren(el("div", {}, el("strong", {}, n.title),
@@ -348,11 +490,16 @@
     }
 
     function activate(n) {
-      if (n.kind === "post") window.location.href = n.url;
-      else setFocus(state.focus === n.name ? null : n.name);
+      if (n.kind === "post") {
+        window.location.href = n.url;
+      } else {
+        state.focus = state.focus === n.name ? null : n.name;
+        colourise();
+        applyHighlight();
+      }
     }
 
-    new ResizeObserver(() => { if (fitted) { resize(); } }).observe(stage);
+    new ResizeObserver(() => { if (fitted) { resize(); schedule(); } }).observe(stage);
     draw();
   }
 

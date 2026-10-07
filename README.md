@@ -35,7 +35,7 @@ have no links in or out (`-v` lists them).
   The viewer draws an edge between two pages that share a source but do not link each other.
 
 ```json
-{"version": 1, "groups": ["Math"],
+{"version": 1, "groups": ["Math", "LLM"], "colours": 7,
  "nodes": [{"id": "math/a.html", "title": "…", "date": "September 30th, 2026", "categories": ["Math"],
             "citations": ["naur1985"], "external": ["https://example.org/essay"],
             "sources": ["cite:naur1985", "url:https://example.org/essay"]}],
@@ -55,8 +55,8 @@ quarto-project = "src"       # read output-dir and website.site-url from its _qu
 # site-url = "https://example.org"   # $SITE_URL and --site-url override it
 index = "index.html"         # the page whose links are the nodes
 out = "graph.json"
-# Categories with a colour, in priority order. Others are grey.
-groups = ["Math", "LLM"]
+colours = 7                  # how many categories are coloured at first
+uncoloured = ["Talk"]        # categories never coloured
 
 [selectors]                  # override any of the preset's
 content = "main"
@@ -84,14 +84,21 @@ A selector that matches a `<meta>` reads its `content`, split on commas; anythin
 <script src="sitegraph.js"></script>
 ```
 
-Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node's size is its number of links, and its
-colour is its categories that are in `groups`: a page in two of them is drawn as a pie of both, a page in none is grey.
-Hovering a node shows it with its neighbours, clicking opens it, and nodes can be dragged and the graph zoomed. Above
-the graph are the legend (click a category to pick out its pages) and three switches: edges between pages that share a
-source (hover one for what they share), categories as nodes of their own, and pages with no links. Below it, the same
-graph as a list of each page's links out and in, and the pages it shares sources with.
+Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node's size is its number of links.
 
-The colours are CSS custom properties, `--sitegraph-1` to `--sitegraph-8` and `--sitegraph-other`, with light and dark
+- **Colours.** `groups` in the graph is every category but the `uncoloured` ones, most pages first, and a category's
+  colour is its place in that list, so it keeps its colour whatever else is turned on. A slider sets how many are
+  coloured, from 0 to 12, starting at `colours` and remembered in the reader's browser. A page is drawn as a pie of
+  up to three of its coloured categories, the most used first, and grey if it has none.
+- **Labels.** Titles are wrapped onto two lines and placed most-linked first, skipping any that would overlap one
+  already placed, so the graph shows as many as fit and more as it is zoomed in.
+- **Finding a page.** Typing in the search box picks out the pages whose title matches; Enter zooms to them.
+- Hovering a node shows it with its neighbours, clicking opens it, and nodes can be dragged and the graph zoomed. The
+  legend picks out a category's pages. Three switches add edges between pages that share a source (hover one for what
+  they share), categories as nodes of their own, and pages with no links.
+- Below the graph, the same graph as a list of each page's links out and in, and the pages it shares sources with.
+
+The colours are CSS custom properties, `--sitegraph-1` to `--sitegraph-12` and `--sitegraph-other`, with light and dark
 values. Dark mode follows Quarto's `body.quarto-dark`, `[data-theme="dark"]` on the root, or the system setting.
 
 ## Tests

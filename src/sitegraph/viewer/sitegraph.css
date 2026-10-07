@@ -220,36 +220,71 @@ main > .sitegraph-local {
   padding-top: 1rem;
   border-top: 1px solid var(--sitegraph-border);
 }
-.sitegraph-local > summary {
+.sitegraph-local-fold { margin-top: 0.4rem; }
+.sitegraph-local-fold:first-child { margin-top: 0; }
+.sitegraph-local-fold > summary {
   cursor: pointer;
-  font-weight: 600;
   color: var(--sitegraph-muted);
 }
-.sitegraph-local-picture { position: relative; max-width: 320px; }
+.sitegraph-local-graph > summary { display: list-item; position: relative; padding-right: 2rem; }
+.sitegraph-local-picture { max-width: 320px; }
 .sitegraph-local-svg { display: block; width: 100%; height: auto; }
-.sitegraph-local-svg .sitegraph-edge { stroke-opacity: 0.35; }
+.sitegraph-local-svg .sitegraph-edge { stroke-opacity: 0.45; }
+.sitegraph-local-chord { stroke: var(--sitegraph-muted); stroke-opacity: 0.2; stroke-width: 1; }
+.sitegraph-local-arrowhead { fill: var(--sitegraph-muted); }
+.sitegraph-local-hit { fill: transparent; }
 .sitegraph-local-dot .sitegraph-ring { stroke-width: 1.5; }
 .sitegraph-local-dot:hover .sitegraph-ring,
-.sitegraph-local-dot:focus-visible .sitegraph-ring { stroke: var(--sitegraph-ink); stroke-width: 2; }
+.sitegraph-local-dot:focus-visible .sitegraph-ring,
+.sitegraph-local-dot.sitegraph-local-hot .sitegraph-ring { stroke: var(--sitegraph-ink); stroke-width: 2.5; }
 .sitegraph-local-self .sitegraph-ring { stroke: var(--sitegraph-ink); stroke-width: 2.5; }
+/* A fixed height, so the lists below do not move as the pointer does. */
+.sitegraph-local-caption {
+  height: 3.9em;
+  overflow: hidden;
+  margin: 0.2rem 0 0;
+  max-width: 320px;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--sitegraph-muted);
+}
+.sitegraph-local-caption strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--sitegraph-ink);
+  font-weight: 600;
+}
+.sitegraph-local-caption span { display: block; white-space: nowrap; }
 .sitegraph-local-enlarge {
   position: absolute;
   top: 0;
   right: 0;
   display: flex;
-  padding: 0.2rem;
+  padding: 0.15rem;
   border: 1px solid var(--sitegraph-border);
   border-radius: 4px;
   background: var(--sitegraph-surface);
   color: var(--sitegraph-muted);
   cursor: pointer;
 }
-.sitegraph-local-enlarge svg { width: 14px; height: 14px; }
+.sitegraph-local-enlarge svg { width: 13px; height: 13px; }
 .sitegraph-local-enlarge:hover { color: var(--sitegraph-ink); }
-.sitegraph-local-list { margin-top: 0.4rem; }
-.sitegraph-local-list summary { cursor: pointer; color: var(--sitegraph-muted); }
-.sitegraph-local-list ul { margin: 0.2rem 0 0; padding-left: 1.1rem; }
-.sitegraph-local-list li { margin: 0.15rem 0; line-height: 1.3; }
+.sitegraph-local-fold ul { margin: 0.2rem 0 0; padding-left: 0; list-style: none; }
+.sitegraph-local-fold li {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  margin: 0.15rem 0;
+  line-height: 1.3;
+}
+.sitegraph-local-swatch { flex: none; width: 0.75em; height: 0.75em; position: relative; top: 0.08em; }
+.sitegraph-local-swatch .sitegraph-ring { stroke-width: 1; }
+/* Titles read as a list, like the table of contents beside it. */
+.sitegraph-local-fold li > a { color: var(--sitegraph-ink); text-decoration: none; }
+.sitegraph-local-fold li > a:hover,
+li.sitegraph-local-hot > a { text-decoration: underline; }
 
 /* The enlarged graph. */
 .sitegraph-dialog {

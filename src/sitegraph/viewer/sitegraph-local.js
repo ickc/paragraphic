@@ -7,8 +7,9 @@
 // URL and does nothing on a page that is not one. The card goes first in the
 // margin (`data-margin`, default Quarto's #quarto-margin-sidebar) while the
 // margin is shown, and otherwise at the end of the article (`data-after`,
-// default `main`). It draws the page and the pages it links, is linked from,
-// or shares a source with, around it; lists them; and enlarges into the full
+// default `main`). It lists the pages this one links, is linked from, or
+// shares a source with, and draws them around it, in a fold of its own that
+// starts closed; pointing at a dot names it. The graph enlarges into the full
 // viewer, centred on the page, in a dialog. Plain DOM and SVG: d3 and
 // sitegraph.js are loaded only when the graph is enlarged.
 (function () {
@@ -16,7 +17,7 @@
 
   const script = document.currentScript;
   const SVG = "http://www.w3.org/2000/svg";
-  const OPEN = "sitegraph:local-open";
+  const OPEN = "sitegraph:local-open:"; // + the fold's name
   const COLOURS = "sitegraph:colours"; // the full viewer's slider
   const MAX_SLICES = 3;
   const SLOTS = 18;
@@ -104,8 +105,13 @@
     };
 
     // --- the picture: this page in the middle, its neighbours around it ---
-    const W = 240, H = 200, R = 72;
+    const W = 240, H = 200, R = 72, DOT = 7.5, SELF = 11;
     const both = backlinks.filter((p) => outgoing.includes(p));
+    const shared = (p) => p.sources.filter((s) => self.sources.includes(s));
+    const relation = (p) => (both.includes(p) ? "↔ links both ways"
+      : outgoing.includes(p) ? "→ linked from this page"
+        : backlinks.includes(p) ? "← links to this page"
+          : `shares ${shared(p).length} source${shared(p).length === 1 ? "" : "s"}`);
     // Round the circle in reading order: linked both ways, links to, linked
     // from, then shared sources, so each kind sits together.
     const ring = [
@@ -114,59 +120,91 @@
       ...backlinks.filter((p) => !both.includes(p)),
       ...sharing,
     ];
-    const dot = (p, x, y, r, extra) => {
-      const g = svg("a", { href: p.url, class: "sitegraph-local-dot" + (extra || "") },
-        svg("title", {}, p.title));
+    // A pie of the page's colours, at (x, y), as SVG shapes.
+    const pie = (p, x, y, r) => {
       const cs = colours(p);
-      if (cs.length === 1) {
-        g.append(svg("circle", { cx: x, cy: y, r, class: "sitegraph-fill-" + cs[0] }));
-      } else {
-        cs.forEach((c, i) => {
-          const a0 = -Math.PI / 2 + (2 * Math.PI * i) / cs.length;
-          const a1 = -Math.PI / 2 + (2 * Math.PI * (i + 1)) / cs.length;
-          const large = a1 - a0 > Math.PI ? 1 : 0;
-          g.append(svg("path", {
-            class: "sitegraph-fill-" + c,
-            d: `M${x},${y}L${x + r * Math.cos(a0)},${y + r * Math.sin(a0)}`
-              + `A${r},${r} 0 ${large} 1 ${x + r * Math.cos(a1)},${y + r * Math.sin(a1)}Z`,
-          }));
+      if (cs.length === 1) return [svg("circle", { cx: x, cy: y, r, class: "sitegraph-fill-" + cs[0] })];
+      return cs.map((c, i) => {
+        const a0 = -Math.PI / 2 + (2 * Math.PI * i) / cs.length;
+        const a1 = -Math.PI / 2 + (2 * Math.PI * (i + 1)) / cs.length;
+        const large = a1 - a0 > Math.PI ? 1 : 0;
+        return svg("path", {
+          class: "sitegraph-fill-" + c,
+          d: `M${x},${y}L${x + r * Math.cos(a0)},${y + r * Math.sin(a0)}`
+            + `A${r},${r} 0 ${large} 1 ${x + r * Math.cos(a1)},${y + r * Math.sin(a1)}Z`,
         });
-      }
-      g.append(svg("circle", { cx: x, cy: y, r, class: "sitegraph-ring" }));
-      return g;
+      });
     };
+    const swatch = (p) => svg("svg", { viewBox: "-6 -6 12 12", class: "sitegraph-local-swatch", "aria-hidden": "true" },
+      ...pie(p, 0, 0, 5), svg("circle", { cx: 0, cy: 0, r: 5, class: "sitegraph-ring" }));
     const picture = svg("svg", {
       viewBox: `${-W / 2} ${-H / 2} ${W} ${H}`, class: "sitegraph-local-svg", role: "img",
       "aria-label": `${self.title}: linked with ${linked.size} post${linked.size === 1 ? "" : "s"}`
         + (sharing.length ? `, shares sources with ${sharing.length} more` : ""),
     });
-    const edges = svg("g", {}), dots = svg("g", {});
-    picture.append(edges, dots);
+    // An arrowhead, for which way a link goes.
+    picture.append(svg("defs", {}, svg("marker", {
+      id: "sitegraph-local-arrow", viewBox: "0 0 10 10", refX: 10, refY: 5,
+      markerWidth: 5, markerHeight: 5, orient: "auto-start-reverse",
+    }, svg("path", { d: "M0,0L10,5L0,10Z", class: "sitegraph-local-arrowhead" }))));
+    const chords = svg("g", {}), edges = svg("g", {}), dots = svg("g", {});
+    picture.append(chords, edges, dots);
+    const at = new Map();
     ring.forEach((p, i) => {
       const a = -Math.PI / 2 + (2 * Math.PI * i) / ring.length;
-      const x = R * Math.cos(a), y = R * Math.sin(a);
-      edges.append(svg("line", {
-        x1: 0, y1: 0, x2: x, y2: y,
-        class: "sitegraph-edge " + (sharing.includes(p) ? "sitegraph-edge-source" : "sitegraph-edge-link"),
-      }));
-      dots.append(dot(p, x, y, 7.5));
+      at.set(p, [R * Math.cos(a), R * Math.sin(a)]);
     });
-    dots.append(dot(self, 0, 0, 11, " sitegraph-local-self"));
+    // Links between the neighbours themselves, faintly, so a cluster shows.
+    const seen = new Set();
+    for (const l of data.links) {
+      const s = posts.get(l.source), t = posts.get(l.target);
+      if (!at.has(s) || !at.has(t)) continue;
+      const key = [l.source, l.target].sort().join("\n");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const [x1, y1] = at.get(s), [x2, y2] = at.get(t);
+      chords.append(svg("line", { x1, y1, x2, y2, class: "sitegraph-local-chord" }));
+    }
+    const items = new Map(); // post -> its <li>s in the lists
+    const dotOf = new Map();
+    const caption = el("p", { class: "sitegraph-local-caption", "aria-live": "polite" });
+    const rest = `${linked.size} linked post${linked.size === 1 ? "" : "s"}`
+      + (sharing.length ? `, ${sharing.length} sharing sources` : "") + ". Point at a dot to name it.";
+    caption.textContent = rest;
+    const show = (p, on) => {
+      dotOf.get(p)?.classList.toggle("sitegraph-local-hot", on);
+      for (const li of items.get(p) || []) li.classList.toggle("sitegraph-local-hot", on);
+      caption.replaceChildren(...(on ? [el("strong", {}, p.title), " ", el("span", {}, relation(p))] : [rest]));
+    };
+    ring.forEach((p) => {
+      const [x, y] = at.get(p);
+      // From the edge of one dot to the edge of the other, so the arrows show.
+      const d = Math.hypot(x, y), ux = x / d, uy = y / d;
+      const line = svg("line", {
+        x1: ux * (SELF + 2), y1: uy * (SELF + 2), x2: x - ux * (DOT + 2), y2: y - uy * (DOT + 2),
+        class: "sitegraph-edge " + (sharing.includes(p) ? "sitegraph-edge-source" : "sitegraph-edge-link"),
+      });
+      if (outgoing.includes(p)) line.setAttribute("marker-end", "url(#sitegraph-local-arrow)");
+      if (backlinks.includes(p)) line.setAttribute("marker-start", "url(#sitegraph-local-arrow)");
+      edges.append(line);
+      const g = svg("a", { href: p.url, class: "sitegraph-local-dot", "aria-label": p.title },
+        ...pie(p, x, y, DOT), svg("circle", { cx: x, cy: y, r: DOT, class: "sitegraph-ring" }),
+        // A larger target than the dot.
+        svg("circle", { cx: x, cy: y, r: DOT + 4, class: "sitegraph-local-hit" }));
+      for (const ev of ["mouseenter", "focus"]) g.addEventListener(ev, () => show(p, true));
+      for (const ev of ["mouseleave", "blur"]) g.addEventListener(ev, () => show(p, false));
+      dotOf.set(p, g);
+      dots.append(g);
+    });
+    dots.append(svg("g", { class: "sitegraph-local-dot sitegraph-local-self" },
+      svg("title", {}, self.title), ...pie(self, 0, 0, SELF),
+      svg("circle", { cx: 0, cy: 0, r: SELF, class: "sitegraph-ring" })));
 
-    // --- the lists ---
-    const linkTo = (p) => el("a", { href: p.url }, p.title);
-    // Lists start open at the end of the article and closed in the margin,
-    // where they would push the table of contents down; place() sets them.
-    const section = (label, ps, open) => (ps.length
-      ? el("details", { class: "sitegraph-local-list", "data-open": open ? "" : null },
-        el("summary", {}, `${label} (${ps.length})`),
-        el("ul", {}, ...ps.map((p) => el("li", {}, linkTo(p)))))
-      : null);
-
-    // --- the card ---
+    // --- the card: the graph and each list fold on their own ---
     const enlarge = el("button", {
       type: "button", class: "sitegraph-local-enlarge", title: "Enlarge the graph",
-      "aria-label": "Enlarge the graph", on: { click: () => openDialog(true) },
+      "aria-label": "Enlarge the graph",
+      on: { click: (e) => { e.preventDefault(); openDialog(true); } },
     }, svg("svg", { viewBox: "0 0 16 16", "aria-hidden": "true" },
       // Two arrows pointing out to opposite corners.
       svg("path", {
@@ -174,16 +212,32 @@
         fill: "none", stroke: "currentColor", "stroke-width": "1.6", "stroke-linecap": "round",
         "stroke-linejoin": "round",
       })));
-    const card = el("details", { class: "sitegraph-local" },
-      el("summary", {}, "Graph view"),
-      el("div", { class: "sitegraph-local-body" },
-        el("div", { class: "sitegraph-local-picture" }, picture, enlarge),
-        section("Backlinks", backlinks, true),
-        section("Outgoing links", outgoing, true),
-        section("Shares sources with", sharing, false)));
-    // Only the reader's own clicks are remembered, not where place() puts it.
-    let placing = false;
-    card.addEventListener("toggle", () => { if (!placing) store(OPEN, card.open ? 1 : 0); });
+    // Each fold is remembered in the reader's browser, by name.
+    const fold = (name, open, summary, ...body) => {
+      const pref = stored(OPEN + name, null);
+      const node = el("details", { class: "sitegraph-local-fold sitegraph-local-" + name,
+        open: pref === null ? open : pref === "1" },
+      el("summary", {}, ...summary), ...body);
+      node.addEventListener("toggle", () => store(OPEN + name, node.open ? 1 : 0));
+      return node;
+    };
+    const list = (name, label, ps) => {
+      if (!ps.length) return null;
+      return fold(name, true, [`${label} (${ps.length})`],
+        el("ul", {}, ...ps.map((p) => {
+          const li = el("li", {
+            on: { mouseenter: () => show(p, true), mouseleave: () => show(p, false) },
+          }, swatch(p), el("a", { href: p.url }, p.title));
+          items.set(p, [...(items.get(p) || []), li]);
+          return li;
+        })));
+    };
+    const card = el("div", { class: "sitegraph-local" },
+      fold("graph", false, ["Graph view", enlarge],
+        el("div", { class: "sitegraph-local-picture" }, picture), caption),
+      list("backlinks", "Backlinks", backlinks),
+      list("outgoing", "Outgoing links", outgoing),
+      list("sharing", "Shares sources with", sharing));
 
     // In the margin while it is shown, otherwise at the end of the article.
     const margin = document.querySelector(script.dataset.margin || "#quarto-margin-sidebar");
@@ -196,17 +250,6 @@
         if (inMargin) target.prepend(card); else target.append(card);
       }
       card.classList.toggle("sitegraph-local-in-margin", inMargin);
-      for (const list of card.querySelectorAll(".sitegraph-local-list")) {
-        list.open = !inMargin && list.hasAttribute("data-open");
-      }
-      const pref = stored(OPEN, null);
-      const open = pref === null ? inMargin : pref === "1";
-      if (card.open !== open) {
-        placing = true;
-        card.open = open;
-        // The toggle event fires after this task.
-        setTimeout(() => { placing = false; });
-      }
     };
     place();
     let wide = window.innerWidth;

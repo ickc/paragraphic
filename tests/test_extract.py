@@ -173,3 +173,18 @@ def test_groups_are_categories_by_page_count_without_the_uncoloured(tmp_path):
     # Most pages first, ties by name.
     assert g["groups"] == ["LLM", "Math", "Agents", "Ethics"]
     assert g["colours"] == 7
+
+
+def test_palette_prefixes_stay_apart_and_match_the_css():
+    from importlib.resources import files
+
+    from sitegraph.palette import PALETTE, TABLEAU_20, css, greedy_order, prefix_min
+
+    assert sorted(PALETTE) == sorted(TABLEAU_20) and PALETTE[0] == "#1f77b4"
+    # Every prefix the slider is likely to stop at is at least as spread out
+    # as Tableau 20's own order.
+    for k in range(3, 13):
+        assert prefix_min(PALETTE, k) >= prefix_min(list(TABLEAU_20), k)
+    assert prefix_min(PALETTE, 12) > 12
+    assert greedy_order(TABLEAU_20) == PALETTE
+    assert css() in (files("sitegraph") / "viewer" / "sitegraph.css").read_text()

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  const SLOTS = 12; // colours in sitegraph.css
+  const SLOTS = 18; // colours in sitegraph.css
   const MAX_SLICES = 3; // a dot shows at most this many of its categories
   const LABEL_SIZE = 13; // px on screen, whatever the zoom
   const LINE_CHARS = 28; // a label wraps onto a second line, then is cut

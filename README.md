@@ -88,7 +88,7 @@ Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node'
 
 - **Colours.** `groups` in the graph is every category but the `uncoloured` ones, most pages first, and a category's
   colour is its place in that list, so it keeps its colour whatever else is turned on. A slider sets how many are
-  coloured, from 0 to 12, starting at `colours` and remembered in the reader's browser. A page is drawn as a pie of
+  coloured, from 0 to 18, starting at `colours` and remembered in the reader's browser. A page is drawn as a pie of
   up to three of its coloured categories, the most used first, and grey if it has none.
 - **Labels.** Titles are wrapped onto two lines and placed most-linked first, skipping any that would overlap one
   already placed, so the graph shows as many as fit and more as it is zoomed in.
@@ -98,8 +98,10 @@ Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node'
   they share), categories as nodes of their own, and pages with no links.
 - Below the graph, the same graph as a list of each page's links out and in, and the pages it shares sources with.
 
-The colours are CSS custom properties, `--sitegraph-1` to `--sitegraph-12` and `--sitegraph-other`, with light and dark
-values. Dark mode follows Quarto's `body.quarto-dark`, `[data-theme="dark"]` on the root, or the system setting.
+The colours are CSS custom properties, `--sitegraph-1` to `--sitegraph-18` and `--sitegraph-other`, the same in both
+themes. They are Tableau 20 without its greys, ordered by `sitegraph/palette.py` so that wherever the slider stops,
+the colours in use are as far apart as that many can be: each next colour is the one farthest, in OKLab, from all the
+colours before it. `python -m sitegraph.palette` prints them, and a test checks the CSS matches. Dark mode follows Quarto's `body.quarto-dark`, `[data-theme="dark"]` on the root, or the system setting.
 
 ## Tests
 

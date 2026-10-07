@@ -1,5 +1,11 @@
 // sitegraph viewer: every `.sitegraph[data-src]` on the page becomes a
 // force-directed graph of the graph.json it names. Needs d3 v7 as `d3`.
+// `window.sitegraph.mount(root, options)` does the same for a root made by
+// script, as sitegraph-local.js does for its enlarged view; options are
+// `src` (graph.json), `focus` (a node id to centre on), `depth` (how many
+// links out from it to show, Infinity for all), `sources` (start with the
+// shared-source edges on) and `list` (false: no list view). On the page
+// itself, `#post=<id>` in the URL focuses that post.
 // See sitegraph/README.md for the data and the options.
 (function () {
   "use strict";
@@ -56,8 +62,8 @@
     try { window.localStorage.setItem(STORE, String(v)); } catch (e) { /* private mode */ }
   }
 
-  async function init(root) {
-    const src = new URL(root.dataset.src, document.baseURI);
+  async function init(root, opts = {}) {
+    const src = new URL(opts.src || root.dataset.src, document.baseURI);
     let data;
     try {
       const res = await fetch(src);
@@ -109,8 +115,11 @@
     const rank = new Map(data.groups.slice(0, SLOTS).map((g, i) => [g, i + 1]));
 
     // --- the page --------------------------------------------------------
+    const fromHash = new URLSearchParams(location.hash.slice(1)).get("post");
+    const focusId = byId.has(opts.focus) ? opts.focus : byId.has(fromHash) ? fromHash : null;
     const state = {
-      sources: false, categories: false, orphans: true,
+      depth: focusId && opts.depth != null ? opts.depth : Infinity,
+      sources: !!opts.sources, categories: false, orphans: true,
       focus: null, query: "", hovered: null,
       colours: clampColours(stored(data.colours ?? 7)),
     };
@@ -139,13 +148,26 @@
       },
     });
     const legend = el("div", { class: "sitegraph-legend", role: "group", "aria-label": "Categories" });
+    // With a focus: how far out from it to show.
+    const depths = el("div", { class: "sitegraph-depth", role: "group", "aria-label": "Links out from this post" },
+      "Depth ", ...[[1, "1"], [2, "2"], [Infinity, "All"]].map(([d, label]) => el("button", {
+        type: "button", "aria-pressed": String(state.depth === d),
+        on: {
+          click: (e) => {
+            state.depth = d;
+            for (const b of depths.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b === e.target));
+            refit = true;
+            draw();
+          },
+        },
+      }, label)));
     const toggle = (key, label) => el("label", { class: "sitegraph-toggle" },
       el("input", {
         type: "checkbox", checked: state[key],
         on: { change: (e) => { state[key] = e.target.checked; draw(); } },
       }), " " + label);
     const controls = el("div", { class: "sitegraph-controls" },
-      el("div", { class: "sitegraph-row" }, search,
+      el("div", { class: "sitegraph-row" }, search, focusId ? depths : null,
         el("label", { class: "sitegraph-slider" }, "Colours ", slider, " ", count),
         el("div", { class: "sitegraph-toggles" },
           toggle("sources", "Shared sources"),
@@ -155,7 +177,8 @@
     const tooltip = el("div", { class: "sitegraph-tooltip", role: "status", hidden: true });
     const stage = el("div", { class: "sitegraph-stage" }, tooltip);
     const list = el("details", { class: "sitegraph-list" }, el("summary", {}, "The graph as a list"));
-    root.append(controls, stage, list);
+    root.append(controls, stage);
+    if (opts.list !== false) root.append(list);
 
     // The list view: every post with its links out and in.
     const titled = [...posts].sort((a, b) => a.title.localeCompare(b.title));
@@ -177,7 +200,7 @@
     const view = svg.append("g");
     const gEdges = view.append("g").attr("class", "sitegraph-edges");
     const gNodes = view.append("g").attr("class", "sitegraph-nodes");
-    let width = 0, height = 0, fitted = false;
+    let width = 0, height = 0, fitted = false, refit = false;
     let transform = d3.zoomIdentity;
     const zoom = d3.zoom().scaleExtent([0.2, 6]).on("zoom", (e) => {
       transform = e.transform;
@@ -192,8 +215,26 @@
     const pie = d3.pie().value(1).sort(null);
     let simulation = null, nodes = [], edges = [];
 
+    // The posts within state.depth links of the focus, counting shared
+    // sources as links when they are shown.
+    function reach() {
+      if (!focusId || state.depth === Infinity) return null;
+      const next = new Map(posts.map((p) => [p.id, new Set()]));
+      const join = (a, b) => { next.get(a).add(b); next.get(b).add(a); };
+      for (const { a, b } of linkPairs.values()) join(a, b);
+      if (state.sources) for (const c of sourcePairs) join(c.a, c.b);
+      const seen = new Set([focusId]);
+      let frontier = [focusId];
+      for (let d = 0; d < state.depth; d++) {
+        frontier = frontier.flatMap((id) => [...next.get(id)].filter((n) => !seen.has(n) && seen.add(n)));
+      }
+      return seen;
+    }
+
     function graph() {
-      const shown = posts.filter((p) => state.orphans || p.degree > 0);
+      const within = reach();
+      const shown = posts.filter((p) => (within ? within.has(p.id)
+        : state.orphans || p.degree > 0 || p.id === focusId));
       const ids = new Set(shown.map((p) => p.id));
       const ns = [...shown];
       const es = [];
@@ -273,6 +314,7 @@
           .on("start", (e, n) => { if (!e.active) simulation.alphaTarget(0.25).restart(); n.fx = n.x; n.fy = n.y; })
           .on("drag", (e, n) => { n.fx = e.x; n.fy = e.y; })
           .on("end", (e, n) => { if (!e.active) simulation.alphaTarget(0); n.fx = null; n.fy = null; }));
+      added.classed("sitegraph-node-focus", (n) => n.id === focusId);
       added.append("g").attr("class", "sitegraph-mark");
       added.filter((n) => n.kind === "category").select(".sitegraph-mark").append("rect")
         .attr("x", -5).attr("y", -5).attr("width", 10).attr("height", 10).attr("rx", 2)
@@ -289,7 +331,15 @@
       colourise();
       scaleLabels();
       ticked();
-      if (!fitted) { svg.call(zoom.transform, fit(nodes, 1.5)); fitted = true; }
+      if (!fitted || refit) {
+        // A focus on the whole graph starts zoomed to its neighbourhood.
+        const around = focusId && state.depth === Infinity
+          ? nodes.filter((n) => n.id === focusId || out.get(focusId).includes(n) || into.get(focusId).includes(n))
+          : nodes;
+        svg.call(zoom.transform, fit(around, 1.5));
+        fitted = true;
+        refit = false;
+      }
       applyHighlight();
       simulation.alpha(0.05).restart();
     }
@@ -376,12 +426,12 @@
     let first = new Set(), forced = new Set(), near = null;
     function applyHighlight() {
       first = new Set();
-      forced = new Set();
+      forced = new Set(focusId && byId.has(focusId) && nodes.some((n) => n.id === focusId) ? [focusId] : []);
       near = null;
       if (state.hovered) {
         const n = state.hovered;
         near = new Set([n.id]);
-        forced.add(n.id);
+        forced = new Set([n.id]);
         for (const e of edges) {
           if (e.source.id === n.id) near.add(e.target.id);
           if (e.target.id === n.id) near.add(e.source.id);
@@ -389,7 +439,7 @@
       } else if (state.query) {
         near = new Set(matches().map((n) => n.id));
         first = near;
-        if (near.size === 1) forced = near;
+        forced = near.size === 1 ? near : new Set();
       } else if (state.focus) {
         near = new Set(nodes.filter((n) =>
           (n.kind === "post" && n.categories.includes(state.focus)) || n.id === "category:" + state.focus)
@@ -508,8 +558,9 @@
       console.error("sitegraph: d3 is not loaded");
       return;
     }
-    document.querySelectorAll(".sitegraph[data-src]").forEach(init);
+    document.querySelectorAll(".sitegraph[data-src]").forEach((root) => init(root));
   }
+  window.sitegraph = { mount: init };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
 })();

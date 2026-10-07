@@ -69,7 +69,7 @@
     let path = decodeURIComponent(location.pathname);
     if (path.endsWith("/")) path += "index.html";
     if (!path.startsWith(base)) return;
-    const id = path.slice(base.length);
+    let id = path.slice(base.length);
 
     let data;
     try {
@@ -80,6 +80,8 @@
       return;
     }
     const posts = new Map(data.nodes.map((n) => [n.id, { ...n, url: new URL(n.id, src).href }]));
+    // A host that serves pages without .html (Cloudflare redirects to that URL).
+    if (!posts.has(id) && posts.has(id + ".html")) id += ".html";
     const self = posts.get(id);
     if (!self) return;
 

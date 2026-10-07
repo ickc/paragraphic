@@ -118,7 +118,8 @@ def test_cli_with_quarto_project_writes_graph_and_viewer(tmp_path):
     g = json.loads((out / "graph.json").read_text())
     assert g["colours"] == 3
     assert edges(g) == {("a.html", "b.html"): 1}
-    assert (out / "sitegraph.js").is_file() and (out / "sitegraph.css").is_file()
+    for name in ("sitegraph.js", "sitegraph-local.js", "sitegraph.css"):
+        assert (out / name).is_file()
 
 
 def test_output_is_deterministic(tmp_path):

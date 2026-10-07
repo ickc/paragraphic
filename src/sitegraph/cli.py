@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .extract import PRESETS, Config, build_graph, selectors_from
 
-VIEWER = ("sitegraph.js", "sitegraph.css")
+VIEWER = ("sitegraph.js", "sitegraph-local.js", "sitegraph.css")
 
 
 def quarto_project(directory: Path) -> dict:

@@ -23,12 +23,22 @@ have no links in or out (`-v` lists them).
   navigation, footer and listings are outside it. Absolute links to `site-url` count as internal.
 - **One document, several renderings.** A page lists its other renderings (the slides of a talk, its PDF) through
   `selectors.alternates`, and a link to any of them is a link to the page. The page itself stays the node.
-- Each node carries its `title`, `date`, `categories` and `citations` (pandoc citeproc's `ref-<key>` ids), from which
-  the viewer draws shared-citation edges and category nodes.
+- Each node carries its `title`, `date` and `categories`, and what it draws on:
+  - `citations`: the keys of its bibliography entries (pandoc citeproc's `ref-<key>` ids);
+  - `external`: its links off the site, without their `#fragment`, and otherwise exactly as written apart from the
+    case of the scheme and host. Links inside the bibliography (`selectors.bibliography`) are left out, since the
+    citations stand for them;
+  - `sources`: the two together, as the hidden nodes two pages can share. A cited work is `cite:<key>`, and a link
+    to one of the URLs in its bibliography entry, on any page, is the same work; any other external link is
+    `url:<URL>`. So a page that links a paper inline and a page that cites it share a source.
+
+  The viewer draws an edge between two pages that share a source but do not link each other.
 
 ```json
 {"version": 1, "groups": ["Math"],
- "nodes": [{"id": "math/a.html", "title": "…", "date": "September 30th, 2026", "categories": ["Math"], "citations": ["naur1985"]}],
+ "nodes": [{"id": "math/a.html", "title": "…", "date": "September 30th, 2026", "categories": ["Math"],
+            "citations": ["naur1985"], "external": ["https://example.org/essay"],
+            "sources": ["cite:naur1985", "url:https://example.org/essay"]}],
  "links": [{"source": "math/a.html", "target": "math/b.html", "count": 2}]}
 ```
 
@@ -60,6 +70,7 @@ content = "main"
 | `categories` | `meta[name="keywords"]`               | `.quarto-category`                   |
 | `alternates` | none                                  | `.quarto-alternate-formats a`        |
 | `citations`  | `#refs .csl-entry[id^=ref-]`          | same                                 |
+| `bibliography` | `#refs`                             | same                                 |
 | `index_links`| `a`                                   | `.quarto-listing .listing-title a`   |
 
 A selector that matches a `<meta>` reads its `content`, split on commas; anything else, its text.
@@ -76,9 +87,9 @@ A selector that matches a `<meta>` reads its `content`, split on commas; anythin
 Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node's size is its number of links, and its
 colour is its categories that are in `groups`: a page in two of them is drawn as a pie of both, a page in none is grey.
 Hovering a node shows it with its neighbours, clicking opens it, and nodes can be dragged and the graph zoomed. Above
-the graph are the legend (click a category to pick out its pages) and three switches: edges between pages that cite
-the same work, categories as nodes of their own, and pages with no links. Below it, the same graph as a list of each
-page's links out and in.
+the graph are the legend (click a category to pick out its pages) and three switches: edges between pages that share a
+source (hover one for what they share), categories as nodes of their own, and pages with no links. Below it, the same
+graph as a list of each page's links out and in, and the pages it shares sources with.
 
 The colours are CSS custom properties, `--sitegraph-1` to `--sitegraph-8` and `--sitegraph-other`, with light and dark
 values. Dark mode follows Quarto's `body.quarto-dark`, `[data-theme="dark"]` on the root, or the system setting.

@@ -43,6 +43,9 @@ class Selectors:
     # Citations, as pandoc's citeproc writes them: the entry's id is
     # `ref-<citekey>`.
     citations: str = "#refs .csl-entry[id^=ref-]"
+    # The bibliography. Its links are its entries' own URLs and DOIs, which
+    # the citations already stand for, so they are not external links.
+    bibliography: str = "#refs"
     # On the index page: the links that are the site's posts.
     index_links: str = "a"
 
@@ -82,6 +85,9 @@ class Page:
     date: str = ""
     categories: list[str] = field(default_factory=list)
     citations: list[str] = field(default_factory=list)
+    external: list[str] = field(default_factory=list)
+    # The URLs in each cited entry (its URL, its DOI link), which stand for it.
+    cited_urls: dict[str, list[str]] = field(default_factory=dict)
     alternates: list[str] = field(default_factory=list)
     links: list[str] = field(default_factory=list)
     has_content: bool = False
@@ -133,6 +139,22 @@ class Resolver:
             path += "/index.html"
         return path
 
+    def external(self, href: str) -> str | None:
+        """An http(s) link off the site, without its #fragment, or None.
+
+        Otherwise the URL is kept exactly as written, apart from the case of
+        the scheme and host, which do not matter: two posts share a link only
+        if they link to the same page.
+        """
+        url = urlsplit(href.strip())
+        if url.scheme.lower() not in ("http", "https") or not url.netloc:
+            return None
+        url = url._replace(scheme=url.scheme.lower(), netloc=url.netloc.lower(), fragment="")
+        out = url.geturl()
+        if self.site_url and (out + "/").startswith(self.site_url):
+            return None
+        return out
+
 
 def read_page(path: str, html: str, selectors: Selectors, resolve: Resolver) -> Page:
     soup = BeautifulSoup(html, "html.parser")
@@ -149,10 +171,19 @@ def read_page(path: str, html: str, selectors: Selectors, resolve: Resolver) -> 
         ]
     if content is not None:
         page.links = [t for a in content.select("a[href]") if (t := resolve(path, a["href"]))]
+        # By identity: a bs4 Tag hashes by serialising itself.
+        bibliography = {id(el) for el in content.select(selectors.bibliography)} if selectors.bibliography else set()
+        page.external = sorted({
+            u for a in content.select("a[href]")
+            if not any(id(p) in bibliography for p in a.parents) and (u := resolve.external(a["href"]))
+        })
         if selectors.citations:
-            page.citations = sorted({
-                el["id"].removeprefix("ref-") for el in content.select(selectors.citations)
-            })
+            for el in content.select(selectors.citations):
+                key = el["id"].removeprefix("ref-")
+                page.cited_urls[key] = sorted({
+                    u for a in el.select("a[href]") if (u := resolve.external(a["href"]))
+                })
+            page.citations = sorted(page.cited_urls)
     return page
 
 
@@ -192,6 +223,20 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
         for alt in pages[p].alternates:
             alias.setdefault(alt, p)
 
+    # Sources: the hidden nodes two posts can share. A cited work is
+    # `cite:<key>`, and an external link to one of its URLs is the same work;
+    # any other external link is `url:<URL>`.
+    work_of_url: dict[str, str] = {}
+    for p in sorted(nodes):
+        for key, urls in pages[p].cited_urls.items():
+            for u in urls:
+                work_of_url.setdefault(u, key)
+
+    def sources(page: Page) -> list[str]:
+        out = {f"cite:{k}" for k in page.citations}
+        out |= {f"cite:{work_of_url[u]}" if u in work_of_url else f"url:{u}" for u in page.external}
+        return sorted(out)
+
     counts: Counter[tuple[str, str]] = Counter()
     for p in sorted(nodes):
         for target in pages[p].links:
@@ -209,6 +254,8 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
                 "date": pages[p].date,
                 "categories": pages[p].categories,
                 "citations": pages[p].citations,
+                "external": pages[p].external,
+                "sources": sources(pages[p]),
             }
             for p in sorted(nodes)
         ],

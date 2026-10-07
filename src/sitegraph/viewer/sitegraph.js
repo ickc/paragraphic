@@ -62,12 +62,19 @@
       const k = pairKey(l.source, l.target);
       if (!linkPairs.has(k)) linkPairs.set(k, { a: l.source, b: l.target });
     }
-    const citePairs = [];
+    // Posts that cite or link the same source, but do not link each other.
+    // A source is `cite:<key>` or `url:<URL>` (see sitegraph/README.md).
+    const sourceName = (src) => src.startsWith("cite:") ? src.slice(5)
+      : src.slice(4).replace(/^https?:\/\//, "");
+    const sourcePairs = [];
+    const sharing = new Map(posts.map((p) => [p.id, []]));
     for (let i = 0; i < posts.length; i++) {
       for (let j = i + 1; j < posts.length; j++) {
-        const shared = posts[i].citations.filter((c) => posts[j].citations.includes(c));
+        const shared = posts[i].sources.filter((c) => posts[j].sources.includes(c));
         if (shared.length && !linkPairs.has(pairKey(posts[i].id, posts[j].id))) {
-          citePairs.push({ a: posts[i].id, b: posts[j].id, shared: shared.length });
+          sourcePairs.push({ a: posts[i].id, b: posts[j].id, shared });
+          sharing.get(posts[i].id).push(posts[j]);
+          sharing.get(posts[j].id).push(posts[i]);
         }
       }
     }
@@ -78,7 +85,7 @@
     const short = (t) => (t.length > LABEL_CHARS ? t.slice(0, LABEL_CHARS - 1).trimEnd() + "…" : t);
 
     // --- the page --------------------------------------------------------
-    const state = { citations: false, categories: false, orphans: true, focus: null };
+    const state = { sources: false, categories: false, orphans: true, focus: null };
     const legend = el("div", { class: "sitegraph-legend", role: "group", "aria-label": "Categories" });
     const toggle = (key, label) => el("label", { class: "sitegraph-toggle" },
       el("input", {
@@ -87,7 +94,7 @@
       }), " " + label);
     const controls = el("div", { class: "sitegraph-controls" }, legend,
       el("div", { class: "sitegraph-toggles" },
-        toggle("citations", "Shared citations"),
+        toggle("sources", "Shared sources"),
         toggle("categories", "Categories as nodes"),
         toggle("orphans", "Unlinked posts")));
     const tooltip = el("div", { class: "sitegraph-tooltip", role: "status", hidden: true });
@@ -113,11 +120,12 @@
     const linkTo = (p) => el("a", { href: p.url }, p.title);
     const joined = (ps) => ps.flatMap((p, i) => (i ? [", ", linkTo(p)] : [linkTo(p)]));
     for (const p of titled) {
-      const o = out.get(p.id), i = into.get(p.id);
+      const o = out.get(p.id), i = into.get(p.id), sh = sharing.get(p.id);
       ul.append(el("li", {}, linkTo(p),
         o.length ? el("div", {}, "Links to: ", ...joined(o)) : null,
         i.length ? el("div", {}, "Linked from: ", ...joined(i)) : null,
-        !o.length && !i.length ? el("div", {}, "No links in or out.") : null));
+        !o.length && !i.length ? el("div", {}, "No links in or out.") : null,
+        sh.length ? el("div", {}, "Shares sources with: ", ...joined(sh)) : null));
     }
     list.append(ul);
 
@@ -147,9 +155,11 @@
       const ns = [...shown];
       const es = [];
       for (const { a, b } of linkPairs.values()) es.push({ source: a, target: b, kind: "link" });
-      if (state.citations) {
-        for (const c of citePairs) {
-          if (ids.has(c.a) && ids.has(c.b)) es.push({ source: c.a, target: c.b, kind: "cite" });
+      if (state.sources) {
+        for (const c of sourcePairs) {
+          if (ids.has(c.a) && ids.has(c.b)) {
+            es.push({ source: c.a, target: c.b, kind: "source", shared: c.shared });
+          }
         }
       }
       if (state.categories) {
@@ -181,7 +191,7 @@
       simulation = d3.forceSimulation(nodes)
         .force("link", d3.forceLink(edges).id((n) => n.id)
           .distance((e) => (e.kind === "link" ? 70 : 90))
-          .strength((e) => (e.kind === "link" ? 0.4 : e.kind === "cite" ? 0.08 : 0.15)))
+          .strength((e) => (e.kind === "link" ? 0.4 : e.kind === "source" ? 0.08 : 0.15)))
         .force("charge", d3.forceManyBody().strength(-340))
         .force("collide", d3.forceCollide((n) => radius(n) + 6))
         .force("x", d3.forceX().strength(0.06 * Math.max(1, aspect)))
@@ -195,7 +205,9 @@
       const edge = gEdges.selectAll("line").data(edges, (e) => e.kind + pairKey(
         e.source.id, e.target.id));
       edge.exit().remove();
-      edge.enter().append("line").attr("class", (e) => "sitegraph-edge sitegraph-edge-" + e.kind);
+      edge.enter().append("line").attr("class", (e) => "sitegraph-edge sitegraph-edge-" + e.kind)
+        .filter((e) => e.kind === "source").append("title")
+        .text((e) => "Both cite or link: " + e.shared.map(sourceName).join(", "));
 
       const node = gNodes.selectAll("g.sitegraph-node").data(nodes, (n) => n.id);
       node.exit().remove();
@@ -310,7 +322,9 @@
         tooltip.replaceChildren(el("div", {}, el("strong", {}, n.title),
           n.date ? el("div", {}, n.date) : null,
           n.categories.length ? el("div", {}, n.categories.join(" · ")) : null,
-          el("div", {}, `Links to ${o} · linked from ${i}`)));
+          el("div", {}, `Links to ${o} · linked from ${i}`),
+          sharing.get(n.id).length
+            ? el("div", {}, `Shares sources with ${sharing.get(n.id).length} more`) : null));
       } else {
         tooltip.replaceChildren(el("div", {}, el("strong", {}, n.title),
           el("div", {}, `${n.degree} post${n.degree === 1 ? "" : "s"}`)));

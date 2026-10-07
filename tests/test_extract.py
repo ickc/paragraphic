@@ -93,7 +93,8 @@ def test_metadata_and_citations(tmp_path):
     write(tmp_path, {"a.html": page(body, title="The title – Site")})
     [node] = graph(tmp_path, groups=["Math"])["nodes"]
     assert node == {"id": "a.html", "title": "The title", "date": "September 30th, 2026",
-                    "categories": ["Math", "LLM"], "citations": ["knuth1984", "naur1985"]}
+                    "categories": ["Math", "LLM"], "citations": ["knuth1984", "naur1985"],
+                    "external": [], "sources": ["cite:knuth1984", "cite:naur1985"]}
 
 
 def test_pandoc_preset_reads_meta(tmp_path):
@@ -130,3 +131,30 @@ def test_missing_index_is_reported(tmp_path):
     write(tmp_path, {"a.html": page("")})
     with pytest.raises(FileNotFoundError):
         graph(tmp_path, index="index.html")
+
+
+def test_external_links_drop_the_fragment_and_skip_the_site_and_bibliography(tmp_path):
+    body = ('<a href="https://Example.COM/x?q=1#sec">1</a> <a href="https://example.com/x?q=1">2</a>'
+            '<a href="https://example.com/X">case of the path matters</a>'
+            '<a href="https://blog.example.org/a.html">own site</a> <a href="mailto:a@b.c">mail</a>'
+            '<div id="refs"><div class="csl-entry" id="ref-k">'
+            '<a href="https://doi.org/10.1/k">doi</a></div></div>')
+    write(tmp_path, {"a.html": page(body)})
+    [node] = graph(tmp_path, site_url="https://blog.example.org")["nodes"]
+    assert node["external"] == ["https://example.com/X", "https://example.com/x?q=1"]
+
+
+def test_sources_join_a_citation_and_a_link_to_the_same_work(tmp_path):
+    refs = ('<div id="refs"><div class="csl-entry" id="ref-naur1985">Naur. '
+            '<a href="https://doi.org/10.1/naur">doi</a></div></div>')
+    write(tmp_path, {
+        "cites.html": page(refs),
+        # Links the work its neighbour cites, and a page its other neighbour links.
+        "links.html": page('<a href="https://doi.org/10.1/naur#p3">Naur</a>'
+                           '<a href="https://example.com/essay#top">essay</a>'),
+        "other.html": page('<a href="https://example.com/essay">essay</a>'),
+    })
+    nodes = {n["id"]: n for n in graph(tmp_path)["nodes"]}
+    assert nodes["cites.html"]["sources"] == ["cite:naur1985"]
+    assert nodes["links.html"]["sources"] == ["cite:naur1985", "url:https://example.com/essay"]
+    assert nodes["other.html"]["sources"] == ["url:https://example.com/essay"]

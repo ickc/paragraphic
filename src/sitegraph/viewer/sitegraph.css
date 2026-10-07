@@ -128,7 +128,7 @@ button.sitegraph-legend-item[aria-pressed="true"] { border-color: var(--sitegrap
 }
 
 .sitegraph-edge { stroke: var(--sitegraph-ink); stroke-opacity: 0.22; stroke-width: 1; }
-.sitegraph-edge-cite { stroke-dasharray: 4 3; stroke-opacity: 0.3; }
+.sitegraph-edge-source { stroke-dasharray: 4 3; stroke-opacity: 0.3; }
 .sitegraph-edge-category { stroke-dasharray: 1 3; stroke-opacity: 0.25; }
 
 .sitegraph-label {

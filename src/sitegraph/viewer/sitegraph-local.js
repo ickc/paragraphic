@@ -8,8 +8,8 @@
 // margin (`data-margin`, default Quarto's #quarto-margin-sidebar) while the
 // margin is shown, and otherwise at the end of the article (`data-after`,
 // default `main`). It lists the pages this one links, is linked from, or
-// shares a source with, and draws them around it, in a fold of its own that
-// starts closed; pointing at a dot names it. The graph enlarges into the full
+// shares a source with, and draws them around it; pointing at a dot names it.
+// The card is a fold, open at first, with each list a fold inside it, closed. The graph enlarges into the full
 // viewer, centred on the page, in a dialog. Plain DOM and SVG: d3 and
 // sitegraph.js are loaded only when the graph is enlarged.
 (function () {
@@ -200,7 +200,7 @@
       svg("title", {}, self.title), ...pie(self, 0, 0, SELF),
       svg("circle", { cx: 0, cy: 0, r: SELF, class: "sitegraph-ring" })));
 
-    // --- the card: the graph and each list fold on their own ---
+    // --- the card: the graph, open, with each list folded inside it ---
     const enlarge = el("button", {
       type: "button", class: "sitegraph-local-enlarge", title: "Enlarge the graph",
       "aria-label": "Enlarge the graph",
@@ -223,7 +223,7 @@
     };
     const list = (name, label, ps) => {
       if (!ps.length) return null;
-      return fold(name, true, [`${label} (${ps.length})`],
+      return fold(name, false, [`${label} (${ps.length})`],
         el("ul", {}, ...ps.map((p) => {
           const li = el("li", {
             on: { mouseenter: () => show(p, true), mouseleave: () => show(p, false) },
@@ -233,11 +233,11 @@
         })));
     };
     const card = el("div", { class: "sitegraph-local" },
-      fold("graph", false, ["Graph view", enlarge],
-        el("div", { class: "sitegraph-local-picture" }, picture), caption),
-      list("backlinks", "Backlinks", backlinks),
-      list("outgoing", "Outgoing links", outgoing),
-      list("sharing", "Shares sources with", sharing));
+      fold("graph", true, ["Graph view", enlarge],
+        el("div", { class: "sitegraph-local-picture" }, picture), caption,
+        list("backlinks", "Backlinks", backlinks),
+        list("outgoing", "Outgoing links", outgoing),
+        list("sharing", "Shares sources with", sharing)));
 
     // In the margin while it is shown, otherwise at the end of the article.
     const margin = document.querySelector(script.dataset.margin || "#quarto-margin-sidebar");

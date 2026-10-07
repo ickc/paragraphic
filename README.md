@@ -111,16 +111,16 @@ colours before it. `python -m sitegraph.palette` prints them, and a test checks 
 ```
 
 on every page (in Quarto, a project-level `include-after-body`). The script finds the page among the graph's nodes by
-its URL, and does nothing on a page that is not one. It adds a card of four folds, each opened and closed on its own
-and remembered in the reader's browser:
+its URL, and does nothing on a page that is not one. It adds a "Graph view" fold, open at first, with the lists folded
+inside it, closed at first. Each fold is remembered in the reader's browser.
 
-- **Graph view**, closed at first: the page with the pages it links, is linked from, or shares a source with (dashed)
-  around it, in the same colours as the full graph. Arrows show which way a link goes, and faint lines the links
-  between the neighbours themselves. Pointing at a dot names it under the picture, with how it is linked, and marks
-  it in the lists; pointing at a list entry marks its dot. An enlarge button, in the fold's heading so it works while
-  the fold is closed, opens the full viewer in a dialog, centred on the page, with a depth control (1, 2 or all links
-  out) and a link to the full graph page at `#post=<id>`, which focuses the page there too.
-- **Backlinks**, **Outgoing links** and **Shares sources with**, open at first, each entry with its dot's colours.
+- The picture: the page with the pages it links, is linked from, or shares a source with (dashed) around it, in the
+  same colours as the full graph. Arrows show which way a link goes, and faint lines the links between the neighbours
+  themselves. Pointing at a dot names it under the picture, with how it is linked, and marks it in the lists; pointing
+  at a list entry marks its dot. An enlarge button, in the fold's heading so it works while the fold is closed, opens
+  the full viewer in a dialog, centred on the page, with a depth control (1, 2 or all links out) and a link to the
+  full graph page at `#post=<id>`, which focuses the page there too.
+- **Backlinks**, **Outgoing links** and **Shares sources with**, each entry with its dot's colours.
 
 It goes first in the margin (`data-margin`, default Quarto's `#quarto-margin-sidebar`) while the margin is shown, and
 otherwise at the end of the article (`data-after`, default `main`). It is plain DOM and SVG: d3 (`data-d3`, default

@@ -222,6 +222,8 @@ main > .sitegraph-local {
 }
 .sitegraph-local-fold { margin-top: 0.4rem; }
 .sitegraph-local-fold:first-child { margin-top: 0; }
+.sitegraph-local-graph > summary { font-weight: 600; }
+.sitegraph-local-graph .sitegraph-local-fold > summary { font-weight: normal; }
 .sitegraph-local-fold > summary {
   cursor: pointer;
   color: var(--sitegraph-muted);

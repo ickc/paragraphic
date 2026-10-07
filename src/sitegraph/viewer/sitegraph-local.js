@@ -64,12 +64,10 @@
 
   async function start() {
     const src = new URL(script.dataset.src || "graph.json", script.src);
-    // This page's node id: its path below graph.json's directory.
+    // This page's path below graph.json's directory.
     const base = new URL(".", src).pathname;
-    let path = decodeURIComponent(location.pathname);
-    if (path.endsWith("/")) path += "index.html";
+    const path = decodeURIComponent(location.pathname);
     if (!path.startsWith(base)) return;
-    let id = path.slice(base.length);
 
     let data;
     try {
@@ -79,11 +77,15 @@
     } catch (e) {
       return;
     }
+    // One key per page, however the host spells its URL: a/b.html, or a/b on
+    // a host that drops .html (Cloudflare does); a/index.html, a/index or a/.
+    const key = (p) => p.replace(/\.html$/, "").replace(/(^|\/)index$/, "$1");
+    const here = key(path.slice(base.length));
+    const node = data.nodes.find((n) => key(n.id) === here);
+    if (!node) return;
+    const id = node.id;
     const posts = new Map(data.nodes.map((n) => [n.id, { ...n, url: new URL(n.id, src).href }]));
-    // A host that serves pages without .html (Cloudflare redirects to that URL).
-    if (!posts.has(id) && posts.has(id + ".html")) id += ".html";
     const self = posts.get(id);
-    if (!self) return;
 
     const outgoing = [], backlinks = [];
     for (const l of data.links) {

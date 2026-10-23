@@ -1,9 +1,10 @@
-// sitegraph, https://github.com/ickc/sitegraph
+// paragraphic, https://github.com/ickc/paragraphic
+// Copyright (C) 2026 Kolen Cheung
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// sitegraph local graph: the page's own neighbourhood, in a collapsible card.
+// paragraphic local graph: the page's own neighbourhood, in a collapsible card.
 //
-//   <link rel="stylesheet" href="/sitegraph.css">
-//   <script src="/sitegraph-local.js" data-src="/graph.json" defer></script>
+//   <link rel="stylesheet" href="/paragraphic.css">
+//   <script src="/paragraphic-local.js" data-src="/graph.json" defer></script>
 //
 // on every page. The script finds this page among graph.json's nodes by its
 // URL and does nothing on a page that is not one. The card goes first in the
@@ -13,14 +14,14 @@
 // shares a source with, and draws them around it; pointing at a dot names it.
 // The card is a fold, open at first, with each list a fold inside it, closed. The graph enlarges into the full
 // viewer, centred on the page, in a dialog. Plain DOM and SVG: d3 and
-// sitegraph.js are loaded only when the graph is enlarged.
+// paragraphic.js are loaded only when the graph is enlarged.
 (function () {
   "use strict";
 
   const script = document.currentScript;
   const SVG = "http://www.w3.org/2000/svg";
-  const OPEN = "sitegraph:local-open:"; // + the fold's name
-  const COLOURS = "sitegraph:colours"; // the full viewer's slider
+  const OPEN = "paragraphic:local-open:"; // + the fold's name
+  const COLOURS = "paragraphic:colours"; // the full viewer's slider
   const MAX_SLICES = 3;
   const SLOTS = 18;
   const D3 = script.dataset.d3 || "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js";
@@ -129,30 +130,30 @@
     // A pie of the page's colours, at (x, y), as SVG shapes.
     const pie = (p, x, y, r) => {
       const cs = colours(p);
-      if (cs.length === 1) return [svg("circle", { cx: x, cy: y, r, class: "sitegraph-fill-" + cs[0] })];
+      if (cs.length === 1) return [svg("circle", { cx: x, cy: y, r, class: "paragraphic-fill-" + cs[0] })];
       return cs.map((c, i) => {
         const a0 = -Math.PI / 2 + (2 * Math.PI * i) / cs.length;
         const a1 = -Math.PI / 2 + (2 * Math.PI * (i + 1)) / cs.length;
         const large = a1 - a0 > Math.PI ? 1 : 0;
         return svg("path", {
-          class: "sitegraph-fill-" + c,
+          class: "paragraphic-fill-" + c,
           d: `M${x},${y}L${x + r * Math.cos(a0)},${y + r * Math.sin(a0)}`
             + `A${r},${r} 0 ${large} 1 ${x + r * Math.cos(a1)},${y + r * Math.sin(a1)}Z`,
         });
       });
     };
-    const swatch = (p) => svg("svg", { viewBox: "-6 -6 12 12", class: "sitegraph-local-swatch", "aria-hidden": "true" },
-      ...pie(p, 0, 0, 5), svg("circle", { cx: 0, cy: 0, r: 5, class: "sitegraph-ring" }));
+    const swatch = (p) => svg("svg", { viewBox: "-6 -6 12 12", class: "paragraphic-local-swatch", "aria-hidden": "true" },
+      ...pie(p, 0, 0, 5), svg("circle", { cx: 0, cy: 0, r: 5, class: "paragraphic-ring" }));
     const picture = svg("svg", {
-      viewBox: `${-W / 2} ${-H / 2} ${W} ${H}`, class: "sitegraph-local-svg", role: "img",
+      viewBox: `${-W / 2} ${-H / 2} ${W} ${H}`, class: "paragraphic-local-svg", role: "img",
       "aria-label": `${self.title}: linked with ${linked.size} post${linked.size === 1 ? "" : "s"}`
         + (sharing.length ? `, shares sources with ${sharing.length} more` : ""),
     });
     // An arrowhead, for which way a link goes.
     picture.append(svg("defs", {}, svg("marker", {
-      id: "sitegraph-local-arrow", viewBox: "0 0 10 10", refX: 10, refY: 5,
+      id: "paragraphic-local-arrow", viewBox: "0 0 10 10", refX: 10, refY: 5,
       markerWidth: 5, markerHeight: 5, orient: "auto-start-reverse",
-    }, svg("path", { d: "M0,0L10,5L0,10Z", class: "sitegraph-local-arrowhead" }))));
+    }, svg("path", { d: "M0,0L10,5L0,10Z", class: "paragraphic-local-arrowhead" }))));
     const chords = svg("g", {}), edges = svg("g", {}), dots = svg("g", {});
     picture.append(chords, edges, dots);
     const at = new Map();
@@ -169,17 +170,17 @@
       if (seen.has(key)) continue;
       seen.add(key);
       const [x1, y1] = at.get(s), [x2, y2] = at.get(t);
-      chords.append(svg("line", { x1, y1, x2, y2, class: "sitegraph-local-chord" }));
+      chords.append(svg("line", { x1, y1, x2, y2, class: "paragraphic-local-chord" }));
     }
     const items = new Map(); // post -> its <li>s in the lists
     const dotOf = new Map();
-    const caption = el("p", { class: "sitegraph-local-caption", "aria-live": "polite" });
+    const caption = el("p", { class: "paragraphic-local-caption", "aria-live": "polite" });
     const rest = `${linked.size} linked post${linked.size === 1 ? "" : "s"}`
       + (sharing.length ? `, ${sharing.length} sharing sources` : "") + ". Point at a dot to name it.";
     caption.textContent = rest;
     const show = (p, on) => {
-      dotOf.get(p)?.classList.toggle("sitegraph-local-hot", on);
-      for (const li of items.get(p) || []) li.classList.toggle("sitegraph-local-hot", on);
+      dotOf.get(p)?.classList.toggle("paragraphic-local-hot", on);
+      for (const li of items.get(p) || []) li.classList.toggle("paragraphic-local-hot", on);
       caption.replaceChildren(...(on ? [el("strong", {}, p.title), " ", el("span", {}, relation(p))] : [rest]));
     };
     ring.forEach((p) => {
@@ -188,27 +189,27 @@
       const d = Math.hypot(x, y), ux = x / d, uy = y / d;
       const line = svg("line", {
         x1: ux * (SELF + 2), y1: uy * (SELF + 2), x2: x - ux * (DOT + 2), y2: y - uy * (DOT + 2),
-        class: "sitegraph-edge " + (sharing.includes(p) ? "sitegraph-edge-source" : "sitegraph-edge-link"),
+        class: "paragraphic-edge " + (sharing.includes(p) ? "paragraphic-edge-source" : "paragraphic-edge-link"),
       });
-      if (outgoing.includes(p)) line.setAttribute("marker-end", "url(#sitegraph-local-arrow)");
-      if (backlinks.includes(p)) line.setAttribute("marker-start", "url(#sitegraph-local-arrow)");
+      if (outgoing.includes(p)) line.setAttribute("marker-end", "url(#paragraphic-local-arrow)");
+      if (backlinks.includes(p)) line.setAttribute("marker-start", "url(#paragraphic-local-arrow)");
       edges.append(line);
-      const g = svg("a", { href: p.url, class: "sitegraph-local-dot", "aria-label": p.title },
-        ...pie(p, x, y, DOT), svg("circle", { cx: x, cy: y, r: DOT, class: "sitegraph-ring" }),
+      const g = svg("a", { href: p.url, class: "paragraphic-local-dot", "aria-label": p.title },
+        ...pie(p, x, y, DOT), svg("circle", { cx: x, cy: y, r: DOT, class: "paragraphic-ring" }),
         // A larger target than the dot.
-        svg("circle", { cx: x, cy: y, r: DOT + 4, class: "sitegraph-local-hit" }));
+        svg("circle", { cx: x, cy: y, r: DOT + 4, class: "paragraphic-local-hit" }));
       for (const ev of ["mouseenter", "focus"]) g.addEventListener(ev, () => show(p, true));
       for (const ev of ["mouseleave", "blur"]) g.addEventListener(ev, () => show(p, false));
       dotOf.set(p, g);
       dots.append(g);
     });
-    dots.append(svg("g", { class: "sitegraph-local-dot sitegraph-local-self" },
+    dots.append(svg("g", { class: "paragraphic-local-dot paragraphic-local-self" },
       svg("title", {}, self.title), ...pie(self, 0, 0, SELF),
-      svg("circle", { cx: 0, cy: 0, r: SELF, class: "sitegraph-ring" })));
+      svg("circle", { cx: 0, cy: 0, r: SELF, class: "paragraphic-ring" })));
 
     // --- the card: the graph, open, with each list folded inside it ---
     const enlarge = el("button", {
-      type: "button", class: "sitegraph-local-enlarge", title: "Enlarge the graph",
+      type: "button", class: "paragraphic-local-enlarge", title: "Enlarge the graph",
       "aria-label": "Enlarge the graph",
       on: { click: (e) => { e.preventDefault(); openDialog(true); } },
     }, svg("svg", { viewBox: "0 0 16 16", "aria-hidden": "true" },
@@ -221,7 +222,7 @@
     // Each fold is remembered in the reader's browser, by name.
     const fold = (name, open, summary, ...body) => {
       const pref = stored(OPEN + name, null);
-      const node = el("details", { class: "sitegraph-local-fold sitegraph-local-" + name,
+      const node = el("details", { class: "paragraphic-local-fold paragraphic-local-" + name,
         open: pref === null ? open : pref === "1" },
       el("summary", {}, ...summary), ...body);
       node.addEventListener("toggle", () => store(OPEN + name, node.open ? 1 : 0));
@@ -238,9 +239,9 @@
           return li;
         })));
     };
-    const card = el("div", { class: "sitegraph-local" },
+    const card = el("div", { class: "paragraphic-local" },
       fold("graph", true, ["Graph view", enlarge],
-        el("div", { class: "sitegraph-local-picture" }, picture), caption,
+        el("div", { class: "paragraphic-local-picture" }, picture), caption,
         list("backlinks", "Backlinks", backlinks),
         list("outgoing", "Outgoing links", outgoing),
         list("sharing", "Shares sources with", sharing)));
@@ -255,7 +256,7 @@
       if (card.parentNode !== target) {
         if (inMargin) target.prepend(card); else target.append(card);
       }
-      card.classList.toggle("sitegraph-local-in-margin", inMargin);
+      card.classList.toggle("paragraphic-local-in-margin", inMargin);
     };
     place();
     let wide = window.innerWidth;
@@ -267,13 +268,13 @@
     let dialog = null, pushed = false;
     async function openDialog(push) {
       if (!dialog) {
-        const root = el("div", { class: "sitegraph sitegraph-in-dialog" });
-        dialog = el("dialog", { class: "sitegraph-dialog", "aria-label": "Graph of " + self.title },
-          el("div", { class: "sitegraph-dialog-head" },
+        const root = el("div", { class: "paragraphic paragraphic-in-dialog" });
+        dialog = el("dialog", { class: "paragraphic-dialog", "aria-label": "Graph of " + self.title },
+          el("div", { class: "paragraphic-dialog-head" },
             el("a", { href: new URL(script.dataset.page || "graph.html", src).href + "#post=" + encodeURIComponent(id) },
               "Open the full graph"),
             el("button", {
-              type: "button", class: "sitegraph-dialog-close", "aria-label": "Close",
+              type: "button", class: "paragraphic-dialog-close", "aria-label": "Close",
               on: { click: () => closeDialog() },
             }, "×")),
           root);
@@ -285,16 +286,16 @@
         dialog.showModal();
         try {
           if (typeof d3 === "undefined") await load("script", { src: D3 });
-          if (!window.sitegraph) await load("script", { src: new URL("sitegraph.js", script.src).href });
-          await window.sitegraph.mount(root, { src: src.href, focus: id, depth: 1, sources: true, list: false });
+          if (!window.paragraphic) await load("script", { src: new URL("paragraphic.js", script.src).href });
+          await window.paragraphic.mount(root, { src: src.href, focus: id, depth: 1, sources: true, list: false });
         } catch (err) {
-          root.append(el("p", { class: "sitegraph-error" }, "Could not load the graph: " + err.message));
+          root.append(el("p", { class: "paragraphic-error" }, "Could not load the graph: " + err.message));
         }
       } else {
         dialog.showModal();
       }
       // Back closes the dialog rather than leaving the page.
-      if (push) { history.pushState({ sitegraph: true }, "", "#graph"); pushed = true; }
+      if (push) { history.pushState({ paragraphic: true }, "", "#graph"); pushed = true; }
     }
     function closeDialog() {
       if (dialog && dialog.open) dialog.close();

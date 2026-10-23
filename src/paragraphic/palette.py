@@ -1,3 +1,6 @@
+# paragraphic, https://github.com/ickc/paragraphic
+# Copyright (C) 2026 Kolen Cheung
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The viewer's category colours: Tableau 20 without its greys, reordered so
 that every prefix is as spread out as it can be.
 
@@ -9,7 +12,7 @@ distance measured in OKLab. Measured as the smallest distance within the
 first k colours (OKLab ΔE × 100), it beats Tableau 20's own order and every
 coprime stride through it at every k, and stays above 12 up to k = 12.
 
-    python -m sitegraph.palette    # print the CSS custom properties
+    python -m paragraphic.palette    # print the CSS custom properties
 """
 
 from __future__ import annotations
@@ -64,7 +67,7 @@ PALETTE = greedy_order(TABLEAU_20)
 
 
 def css() -> str:
-    return "\n".join(f"  --sitegraph-{i}: {c};" for i, c in enumerate(PALETTE, 1))
+    return "\n".join(f"  --paragraphic-{i}: {c};" for i, c in enumerate(PALETTE, 1))
 
 
 if __name__ == "__main__":

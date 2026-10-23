@@ -1,6 +1,7 @@
-# sitegraph
+# paragraphic
 
-An Obsidian-style graph of how the pages of a static site link to each other.
+An Obsidian-style graph of how the pages of a static site link to each other. The name is PARA, the note-keeping
+method, and parasite's `para`, made into a graph.
 
 It reads the site **after** it is rendered, from its HTML, so it does not depend on the site generator: by then links
 have been resolved, includes expanded and output names decided. A generator is described by a few CSS selectors, and
@@ -8,12 +9,12 @@ there are presets for pandoc's default template and for Quarto. It is a post-pro
 means changing the preset, not the tool.
 
 ```sh
-sitegraph build path/to/rendered/site            # pandoc preset, every page is a node
-sitegraph build -c sitegraph.toml                # settings from a file
+paragraphic build path/to/rendered/site     # pandoc preset, every page is a node
+paragraphic build -c paragraphic.toml       # settings from a file
 ```
 
-`build` writes `graph.json` into the site, with `sitegraph.js` and `sitegraph.css` beside it, and prints how many pages
-have no links in or out (`-v` lists them).
+`build` writes `graph.json` into the site, with `paragraphic.js` and `paragraphic.css` beside it, and prints how many
+pages have no links in or out (`-v` lists them).
 
 ## The graph
 
@@ -44,7 +45,7 @@ have no links in or out (`-v` lists them).
 
 The output is sorted and carries no timestamp, so the same site gives the same bytes.
 
-## sitegraph.toml
+## paragraphic.toml
 
 All keys are optional. Paths are relative to the file.
 
@@ -78,13 +79,13 @@ A selector that matches a `<meta>` reads its `content`, split on commas; anythin
 ## The viewer
 
 ```html
-<link rel="stylesheet" href="sitegraph.css">
-<div class="sitegraph" data-src="graph.json"></div>
+<link rel="stylesheet" href="paragraphic.css">
+<div class="paragraphic" data-src="graph.json"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="sitegraph.js"></script>
+<script src="paragraphic.js"></script>
 ```
 
-Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node's size is its number of links.
+Every `.paragraphic[data-src]` on the page becomes a force-directed graph. A node's size is its number of links.
 
 - **Colours.** `groups` in the graph is every category but the `uncoloured` ones, most pages first, and a category's
   colour is its place in that list, so it keeps its colour whatever else is turned on. A slider sets how many are
@@ -98,16 +99,16 @@ Every `.sitegraph[data-src]` on the page becomes a force-directed graph. A node'
   they share), categories as nodes of their own, and pages with no links.
 - Below the graph, the same graph as a list of each page's links out and in, and the pages it shares sources with.
 
-The colours are CSS custom properties, `--sitegraph-1` to `--sitegraph-18` and `--sitegraph-other`, the same in both
-themes. They are Tableau 20 without its greys, ordered by `sitegraph/palette.py` so that wherever the slider stops,
+The colours are CSS custom properties, `--paragraphic-1` to `--paragraphic-18` and `--paragraphic-other`, the same in
+both themes. They are Tableau 20 without its greys, ordered by `paragraphic/palette.py` so that wherever the slider stops,
 the colours in use are as far apart as that many can be: each next colour is the one farthest, in OKLab, from all the
-colours before it. `python -m sitegraph.palette` prints them, and a test checks the CSS matches. Dark mode follows Quarto's `body.quarto-dark`, `[data-theme="dark"]` on the root, or the system setting.
+colours before it. `python -m paragraphic.palette` prints them, and a test checks the CSS matches. Dark mode follows Quarto's `body.quarto-dark`, `[data-theme="dark"]` on the root, or the system setting.
 
 ## The local graph
 
 ```html
-<link rel="stylesheet" href="/sitegraph.css">
-<script src="/sitegraph-local.js" data-src="/graph.json" defer></script>
+<link rel="stylesheet" href="/paragraphic.css">
+<script src="/paragraphic-local.js" data-src="/graph.json" defer></script>
 ```
 
 on every page (in Quarto, a project-level `include-after-body`). The script finds the page among the graph's nodes by
@@ -124,17 +125,17 @@ inside it, closed at first. Each fold is remembered in the reader's browser.
 
 It goes first in the margin (`data-margin`, default Quarto's `#quarto-margin-sidebar`) while the margin is shown, and
 otherwise at the end of the article (`data-after`, default `main`). It is plain DOM and SVG: d3 (`data-d3`, default
-cdnjs) and `sitegraph.js` load only when the graph is enlarged, so a page pays for one `graph.json` fetch, which the
+cdnjs) and `paragraphic.js` load only when the graph is enlarged, so a page pays for one `graph.json` fetch, which the
 browser caches across pages.
 
 ## Tests
 
 ```sh
-pytest sitegraph/tests
+pytest paragraphic/tests
 ```
 
 ## License
 
-[GNU Affero General Public License v3.0 or later](LICENSE.md). The viewer's files are
-copied into every site that uses it, so a site serving them keeps their notice and points
-to this repository for their source.
+Copyright (C) 2026 Kolen Cheung, under the [GNU Affero General Public License v3.0 or later](LICENSE.md). The
+viewer's files are copied into every site that uses it, so a site serving them keeps their notice and points to this
+repository for their source.

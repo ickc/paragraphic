@@ -1,3 +1,5 @@
+// sitegraph, https://github.com/ickc/sitegraph
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // sitegraph viewer: every `.sitegraph[data-src]` on the page becomes a
 // force-directed graph of the graph.json it names. Needs d3 v7 as `d3`.
 // `window.sitegraph.mount(root, options)` does the same for a root made by

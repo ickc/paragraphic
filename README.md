@@ -132,3 +132,9 @@ browser caches across pages.
 ```sh
 pytest sitegraph/tests
 ```
+
+## License
+
+[GNU Affero General Public License v3.0 or later](LICENSE.md). The viewer's files are
+copied into every site that uses it, so a site serving them keeps their notice and points
+to this repository for their source.

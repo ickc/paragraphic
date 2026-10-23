@@ -1,3 +1,5 @@
+/* sitegraph, https://github.com/ickc/sitegraph */
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* sitegraph viewer. Colours are custom properties; dark mode is Quarto's
    body.quarto-dark, [data-theme="dark"], or the system setting.
 

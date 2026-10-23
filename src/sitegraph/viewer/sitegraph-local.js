@@ -1,3 +1,5 @@
+// sitegraph, https://github.com/ickc/sitegraph
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // sitegraph local graph: the page's own neighbourhood, in a collapsible card.
 //
 //   <link rel="stylesheet" href="/sitegraph.css">

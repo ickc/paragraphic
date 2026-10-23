@@ -1,10 +1,13 @@
+# paragraphic, https://github.com/ickc/paragraphic
+# Copyright (C) 2026 Kolen Cheung
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import json
 from pathlib import Path
 
 import pytest
 
-from sitegraph import PRESETS, Config, build_graph
-from sitegraph.cli import main
+from paragraphic import PRESETS, Config, build_graph
+from paragraphic.cli import main
 
 
 def page(body, head="", title="T", main=True):
@@ -112,13 +115,13 @@ def test_cli_with_quarto_project_writes_graph_and_viewer(tmp_path):
         "a.html": page('<a href="https://example.org/b.html">b</a>'),
         "b.html": page(""),
     })
-    (tmp_path / "sitegraph.toml").write_text('quarto-project = "src"\ncolours = 3\n')
-    main(["build", "-c", str(tmp_path / "sitegraph.toml")])
+    (tmp_path / "paragraphic.toml").write_text('quarto-project = "src"\ncolours = 3\n')
+    main(["build", "-c", str(tmp_path / "paragraphic.toml")])
     out = project / "docs"
     g = json.loads((out / "graph.json").read_text())
     assert g["colours"] == 3
     assert edges(g) == {("a.html", "b.html"): 1}
-    for name in ("sitegraph.js", "sitegraph-local.js", "sitegraph.css"):
+    for name in ("paragraphic.js", "paragraphic-local.js", "paragraphic.css"):
         assert (out / name).is_file()
 
 
@@ -179,7 +182,7 @@ def test_groups_are_categories_by_page_count_without_the_uncoloured(tmp_path):
 def test_palette_prefixes_stay_apart_and_match_the_css():
     from importlib.resources import files
 
-    from sitegraph.palette import PALETTE, TABLEAU_20, css, greedy_order, prefix_min
+    from paragraphic.palette import PALETTE, TABLEAU_20, css, greedy_order, prefix_min
 
     assert sorted(PALETTE) == sorted(TABLEAU_20) and PALETTE[0] == "#1f77b4"
     # Every prefix the slider is likely to stop at is at least as spread out
@@ -188,4 +191,4 @@ def test_palette_prefixes_stay_apart_and_match_the_css():
         assert prefix_min(PALETTE, k) >= prefix_min(list(TABLEAU_20), k)
     assert prefix_min(PALETTE, 12) > 12
     assert greedy_order(TABLEAU_20) == PALETTE
-    assert css() in (files("sitegraph") / "viewer" / "sitegraph.css").read_text()
+    assert css() in (files("paragraphic") / "viewer" / "paragraphic.css").read_text()

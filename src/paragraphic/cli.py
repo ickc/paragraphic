@@ -1,4 +1,7 @@
-"""sitegraph build: write graph.json and the viewer into a rendered site."""
+# paragraphic, https://github.com/ickc/paragraphic
+# Copyright (C) 2026 Kolen Cheung
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""paragraphic build: write graph.json and the viewer into a rendered site."""
 
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ from pathlib import Path
 
 from .extract import PRESETS, Config, build_graph, selectors_from
 
-VIEWER = ("sitegraph.js", "sitegraph-local.js", "sitegraph.css")
+VIEWER = ("paragraphic.js", "paragraphic-local.js", "paragraphic.css")
 
 
 def quarto_project(directory: Path) -> dict:
@@ -45,7 +48,7 @@ def load_config(path: Path | None, args: argparse.Namespace) -> tuple[Config, Pa
         root / raw["output-dir"] if "output-dir" in raw else derived.get("output-dir")
     )
     if output_dir is None:
-        sys.exit("sitegraph: no output directory: pass one, or set output-dir or quarto-project")
+        sys.exit("paragraphic: no output directory: pass one, or set output-dir or quarto-project")
     site_url = (args.site_url or os.environ.get("SITE_URL")
                 or raw.get("site-url") or derived.get("site-url"))
     preset = args.preset or raw.get("preset", "pandoc")
@@ -69,17 +72,17 @@ def summary(graph: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="sitegraph", description=__doc__)
+    parser = argparse.ArgumentParser(prog="paragraphic", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     build = sub.add_parser("build", help="write graph.json and the viewer into the output directory")
     build.add_argument("output_dir", nargs="?", type=Path,
                        help="the rendered site (default: from the config)")
-    build.add_argument("-c", "--config", type=Path, help="a sitegraph.toml")
+    build.add_argument("-c", "--config", type=Path, help="a paragraphic.toml")
     build.add_argument("--preset", choices=sorted(PRESETS))
     build.add_argument("--site-url", help="absolute links to it are internal (default: $SITE_URL)")
     build.add_argument("--out", help="the graph's path in the output directory (default: graph.json)")
     build.add_argument("--no-viewer", action="store_true",
-                       help="do not copy sitegraph.js and sitegraph.css next to the graph")
+                       help="do not copy paragraphic.js and paragraphic.css next to the graph")
     build.add_argument("-v", "--verbose", action="store_true",
                        help="also list the pages with no links in or out")
     args = parser.parse_args(argv)
@@ -90,16 +93,16 @@ def main(argv: list[str] | None = None) -> None:
     except FileNotFoundError as err:
         # A render of a single document into an empty output directory: there
         # is no site to draw yet, and that is not the render's failure.
-        print(f"sitegraph: skipped: {err}", file=sys.stderr)
+        print(f"paragraphic: skipped: {err}", file=sys.stderr)
         return
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(graph, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     if not args.no_viewer:
-        viewer = files("sitegraph") / "viewer"
+        viewer = files("paragraphic") / "viewer"
         for name in VIEWER:
             with (viewer / name).open("rb") as src, open(out.parent / name, "wb") as dst:
                 shutil.copyfileobj(src, dst)
-    print(f"sitegraph: {out}: {summary(graph)}", file=sys.stderr)
+    print(f"paragraphic: {out}: {summary(graph)}", file=sys.stderr)
     if args.verbose:
         linked = {l["source"] for l in graph["links"]} | {l["target"] for l in graph["links"]}
         for n in graph["nodes"]:

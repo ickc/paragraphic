@@ -1,3 +1,6 @@
+# paragraphic, https://github.com/ickc/paragraphic
+# Copyright (C) 2026 Kolen Cheung
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Read a rendered static site and return the graph of how its pages link.
 
 Works on the HTML output, not the sources, so it does not care which generator

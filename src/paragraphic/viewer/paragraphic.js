@@ -1,22 +1,23 @@
-// sitegraph, https://github.com/ickc/sitegraph
+// paragraphic, https://github.com/ickc/paragraphic
+// Copyright (C) 2026 Kolen Cheung
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// sitegraph viewer: every `.sitegraph[data-src]` on the page becomes a
+// paragraphic viewer: every `.paragraphic[data-src]` on the page becomes a
 // force-directed graph of the graph.json it names. Needs d3 v7 as `d3`.
-// `window.sitegraph.mount(root, options)` does the same for a root made by
-// script, as sitegraph-local.js does for its enlarged view; options are
+// `window.paragraphic.mount(root, options)` does the same for a root made by
+// script, as paragraphic-local.js does for its enlarged view; options are
 // `src` (graph.json), `focus` (a node id to centre on), `depth` (how many
 // links out from it to show, Infinity for all), `sources` (start with the
 // shared-source edges on) and `list` (false: no list view). On the page
 // itself, `#post=<id>` in the URL focuses that post.
-// See sitegraph/README.md for the data and the options.
+// See paragraphic/README.md for the data and the options.
 (function () {
   "use strict";
 
-  const SLOTS = 18; // colours in sitegraph.css
+  const SLOTS = 18; // colours in paragraphic.css
   const MAX_SLICES = 3; // a dot shows at most this many of its categories
   const LABEL_SIZE = 13; // px on screen, whatever the zoom
   const LINE_CHARS = 28; // a label wraps onto a second line, then is cut
-  const STORE = "sitegraph:colours";
+  const STORE = "paragraphic:colours";
 
   function el(tag, attrs, ...children) {
     const node = document.createElement(tag);
@@ -72,7 +73,7 @@
       if (!res.ok) throw new Error(res.status + " " + res.statusText);
       data = await res.json();
     } catch (err) {
-      root.append(el("p", { class: "sitegraph-error" }, "Could not load the graph: " + err.message));
+      root.append(el("p", { class: "paragraphic-error" }, "Could not load the graph: " + err.message));
       return;
     }
 
@@ -94,7 +95,7 @@
       if (!linkPairs.has(k)) linkPairs.set(k, { a: l.source, b: l.target });
     }
     // Posts that cite or link the same source, but do not link each other.
-    // A source is `cite:<key>` or `url:<URL>` (see sitegraph/README.md).
+    // A source is `cite:<key>` or `url:<URL>` (see paragraphic/README.md).
     const sourceName = (s) => s.startsWith("cite:") ? s.slice(5)
       : s.slice(4).replace(/^https?:\/\//, "");
     const sourcePairs = [];
@@ -126,7 +127,7 @@
       colours: clampColours(stored(data.colours ?? 7)),
     };
     const search = el("input", {
-      type: "search", class: "sitegraph-search", placeholder: "Find a post",
+      type: "search", class: "paragraphic-search", placeholder: "Find a post",
       "aria-label": "Find a post by its title",
       on: {
         input: (e) => { state.query = e.target.value.trim().toLowerCase(); applyHighlight(); },
@@ -136,7 +137,7 @@
         },
       },
     });
-    const count = el("output", { class: "sitegraph-colour-count" }, String(state.colours));
+    const count = el("output", { class: "paragraphic-colour-count" }, String(state.colours));
     const slider = el("input", {
       type: "range", min: 0, max: maxColours, step: 1, value: state.colours,
       "aria-label": "Number of categories with a colour",
@@ -149,9 +150,9 @@
         },
       },
     });
-    const legend = el("div", { class: "sitegraph-legend", role: "group", "aria-label": "Categories" });
+    const legend = el("div", { class: "paragraphic-legend", role: "group", "aria-label": "Categories" });
     // With a focus: how far out from it to show.
-    const depths = el("div", { class: "sitegraph-depth", role: "group", "aria-label": "Links out from this post" },
+    const depths = el("div", { class: "paragraphic-depth", role: "group", "aria-label": "Links out from this post" },
       "Depth ", ...[[1, "1"], [2, "2"], [Infinity, "All"]].map(([d, label]) => el("button", {
         type: "button", "aria-pressed": String(state.depth === d),
         on: {
@@ -163,22 +164,22 @@
           },
         },
       }, label)));
-    const toggle = (key, label) => el("label", { class: "sitegraph-toggle" },
+    const toggle = (key, label) => el("label", { class: "paragraphic-toggle" },
       el("input", {
         type: "checkbox", checked: state[key],
         on: { change: (e) => { state[key] = e.target.checked; draw(); } },
       }), " " + label);
-    const controls = el("div", { class: "sitegraph-controls" },
-      el("div", { class: "sitegraph-row" }, search, focusId ? depths : null,
-        el("label", { class: "sitegraph-slider" }, "Colours ", slider, " ", count),
-        el("div", { class: "sitegraph-toggles" },
+    const controls = el("div", { class: "paragraphic-controls" },
+      el("div", { class: "paragraphic-row" }, search, focusId ? depths : null,
+        el("label", { class: "paragraphic-slider" }, "Colours ", slider, " ", count),
+        el("div", { class: "paragraphic-toggles" },
           toggle("sources", "Shared sources"),
           toggle("categories", "Categories as nodes"),
           toggle("orphans", "Unlinked posts"))),
       legend);
-    const tooltip = el("div", { class: "sitegraph-tooltip", role: "status", hidden: true });
-    const stage = el("div", { class: "sitegraph-stage" }, tooltip);
-    const list = el("details", { class: "sitegraph-list" }, el("summary", {}, "The graph as a list"));
+    const tooltip = el("div", { class: "paragraphic-tooltip", role: "status", hidden: true });
+    const stage = el("div", { class: "paragraphic-stage" }, tooltip);
+    const list = el("details", { class: "paragraphic-list" }, el("summary", {}, "The graph as a list"));
     root.append(controls, stage);
     if (opts.list !== false) root.append(list);
 
@@ -198,10 +199,10 @@
     list.append(ul);
 
     // --- the graph -------------------------------------------------------
-    const svg = d3.select(stage).append("svg").attr("class", "sitegraph-svg");
+    const svg = d3.select(stage).append("svg").attr("class", "paragraphic-svg");
     const view = svg.append("g");
-    const gEdges = view.append("g").attr("class", "sitegraph-edges");
-    const gNodes = view.append("g").attr("class", "sitegraph-nodes");
+    const gEdges = view.append("g").attr("class", "paragraphic-edges");
+    const gNodes = view.append("g").attr("class", "paragraphic-nodes");
     let width = 0, height = 0, fitted = false, refit = false;
     let transform = d3.zoomIdentity;
     const zoom = d3.zoom().scaleExtent([0.2, 6]).on("zoom", (e) => {
@@ -296,14 +297,14 @@
       const edge = gEdges.selectAll("line").data(edges, (e) => e.kind + pairKey(
         e.source.id, e.target.id));
       edge.exit().remove();
-      edge.enter().append("line").attr("class", (e) => "sitegraph-edge sitegraph-edge-" + e.kind)
+      edge.enter().append("line").attr("class", (e) => "paragraphic-edge paragraphic-edge-" + e.kind)
         .filter((e) => e.kind === "source").append("title")
         .text((e) => "Both cite or link: " + e.shared.map(sourceName).join(", "));
 
-      const node = gNodes.selectAll("g.sitegraph-node").data(nodes, (n) => n.id);
+      const node = gNodes.selectAll("g.paragraphic-node").data(nodes, (n) => n.id);
       node.exit().remove();
       const added = node.enter().append("g")
-        .attr("class", (n) => "sitegraph-node sitegraph-node-" + n.kind)
+        .attr("class", (n) => "paragraphic-node paragraphic-node-" + n.kind)
         .attr("tabindex", 0)
         .attr("role", (n) => (n.kind === "post" ? "link" : "button"))
         .attr("aria-label", (n) => (n.kind === "post" ? n.title : "Category: " + n.title))
@@ -316,12 +317,12 @@
           .on("start", (e, n) => { if (!e.active) simulation.alphaTarget(0.25).restart(); n.fx = n.x; n.fy = n.y; })
           .on("drag", (e, n) => { n.fx = e.x; n.fy = e.y; })
           .on("end", (e, n) => { if (!e.active) simulation.alphaTarget(0); n.fx = null; n.fy = null; }));
-      added.classed("sitegraph-node-focus", (n) => n.id === focusId);
-      added.append("g").attr("class", "sitegraph-mark");
-      added.filter((n) => n.kind === "category").select(".sitegraph-mark").append("rect")
+      added.classed("paragraphic-node-focus", (n) => n.id === focusId);
+      added.append("g").attr("class", "paragraphic-mark");
+      added.filter((n) => n.kind === "category").select(".paragraphic-mark").append("rect")
         .attr("x", -5).attr("y", -5).attr("width", 10).attr("height", 10).attr("rx", 2)
-        .attr("class", "sitegraph-category-mark");
-      const text = added.append("text").attr("class", "sitegraph-label").attr("text-anchor", "middle");
+        .attr("class", "paragraphic-category-mark");
+      const text = added.append("text").attr("class", "paragraphic-label").attr("text-anchor", "middle");
       text.each(function (n) {
         const t = d3.select(this);
         wrap(n.title).forEach((line, i) => {
@@ -353,33 +354,33 @@
         const own = p.categories.filter(slot).sort((a, b) => slot(a) - slot(b)).slice(0, MAX_SLICES);
         p.colours = own.length ? own.map(slot) : ["other"];
       }
-      gNodes.selectAll("g.sitegraph-node-post").each(function (n) {
-        const g = d3.select(this).select(".sitegraph-mark");
+      gNodes.selectAll("g.paragraphic-node-post").each(function (n) {
+        const g = d3.select(this).select(".paragraphic-mark");
         g.selectAll("*").remove();
         const r = radius(n);
         if (n.colours.length === 1) {
-          g.append("circle").attr("r", r).attr("class", "sitegraph-fill-" + n.colours[0]);
+          g.append("circle").attr("r", r).attr("class", "paragraphic-fill-" + n.colours[0]);
         } else {
           g.selectAll("path").data(pie(n.colours)).enter().append("path")
-            .attr("d", (d) => arc.outerRadius(r)(d)).attr("class", (d) => "sitegraph-fill-" + d.data);
+            .attr("d", (d) => arc.outerRadius(r)(d)).attr("class", (d) => "paragraphic-fill-" + d.data);
         }
-        g.append("circle").attr("r", r).attr("class", "sitegraph-ring");
+        g.append("circle").attr("r", r).attr("class", "paragraphic-ring");
       });
 
-      const swatch = (cls) => el("span", { class: "sitegraph-swatch " + cls, "aria-hidden": "true" });
+      const swatch = (cls) => el("span", { class: "paragraphic-swatch " + cls, "aria-hidden": "true" });
       legend.replaceChildren(...data.groups.slice(0, state.colours).map((g) => el("button", {
-        type: "button", class: "sitegraph-legend-item", "aria-pressed": String(state.focus === g),
+        type: "button", class: "paragraphic-legend-item", "aria-pressed": String(state.focus === g),
         on: { click: () => { state.focus = state.focus === g ? null : g; colourise(); applyHighlight(); } },
-      }, swatch("sitegraph-fill-" + rank.get(g)), g)));
+      }, swatch("paragraphic-fill-" + rank.get(g)), g)));
       if (posts.some((p) => p.colours[0] === "other")) {
-        legend.append(el("span", { class: "sitegraph-legend-item" }, swatch("sitegraph-fill-other"), "Other"));
+        legend.append(el("span", { class: "paragraphic-legend-item" }, swatch("paragraphic-fill-other"), "Other"));
       }
     }
 
     // Labels keep their size on screen as the graph is zoomed.
     function scaleLabels() {
       const k = transform.k;
-      gNodes.selectAll("text.sitegraph-label")
+      gNodes.selectAll("text.paragraphic-label")
         .attr("font-size", LABEL_SIZE / k)
         .attr("stroke-width", 3 / k)
         .attr("y", (n) => radius(n) + LABEL_SIZE / k);
@@ -389,7 +390,7 @@
       gEdges.selectAll("line")
         .attr("x1", (e) => e.source.x).attr("y1", (e) => e.source.y)
         .attr("x2", (e) => e.target.x).attr("y2", (e) => e.target.y);
-      gNodes.selectAll("g.sitegraph-node").attr("transform", (n) => `translate(${n.x},${n.y})`);
+      gNodes.selectAll("g.paragraphic-node").attr("transform", (n) => `translate(${n.x},${n.y})`);
     }
 
     function resize() {
@@ -447,10 +448,10 @@
           (n.kind === "post" && n.categories.includes(state.focus)) || n.id === "category:" + state.focus)
           .map((n) => n.id));
       }
-      svg.classed("sitegraph-focusing", !!near);
-      search.classList.toggle("sitegraph-no-match", !!state.query && !near.size);
-      gNodes.selectAll("g.sitegraph-node").classed("sitegraph-near", (n) => !!near && near.has(n.id));
-      gEdges.selectAll("line").classed("sitegraph-near",
+      svg.classed("paragraphic-focusing", !!near);
+      search.classList.toggle("paragraphic-no-match", !!state.query && !near.size);
+      gNodes.selectAll("g.paragraphic-node").classed("paragraphic-near", (n) => !!near && near.has(n.id));
+      gEdges.selectAll("line").classed("paragraphic-near",
         (e) => !!near && near.has(e.source.id) && near.has(e.target.id));
       placeLabels();
     }
@@ -481,7 +482,7 @@
       const overlaps = (b) => taken.some((t) => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
       const shown = new Set();
       const texts = new Map();
-      gNodes.selectAll("g.sitegraph-node").each(function (n) { texts.set(n.id, this.querySelector("text")); });
+      gNodes.selectAll("g.paragraphic-node").each(function (n) { texts.set(n.id, this.querySelector("text")); });
       for (const n of order) {
         const [x, y] = screen(n);
         const [w, h] = size(n, texts.get(n.id));
@@ -493,7 +494,7 @@
           taken.push(box);
         }
       }
-      gNodes.selectAll("g.sitegraph-node").classed("sitegraph-labelled", (n) => shown.has(n.id));
+      gNodes.selectAll("g.paragraphic-node").classed("paragraphic-labelled", (n) => shown.has(n.id));
     }
 
     // Once per frame, however many ticks or zoom events ask.
@@ -557,12 +558,12 @@
 
   function start() {
     if (typeof d3 === "undefined") {
-      console.error("sitegraph: d3 is not loaded");
+      console.error("paragraphic: d3 is not loaded");
       return;
     }
-    document.querySelectorAll(".sitegraph[data-src]").forEach((root) => init(root));
+    document.querySelectorAll(".paragraphic[data-src]").forEach((root) => init(root));
   }
-  window.sitegraph = { mount: init };
+  window.paragraphic = { mount: init };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
 })();

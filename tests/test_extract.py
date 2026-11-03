@@ -16,6 +16,10 @@ def page(body, head="", title="T", main=True):
             f'<body><nav><a href="/index.html">Home</a></nav>{content}</body></html>')
 
 
+def titled(title):
+    return page(f'<h1 class="title">{title}</h1>')
+
+
 def write(root: Path, files: dict[str, str]) -> Path:
     for name, html in files.items():
         path = root / name
@@ -124,6 +128,92 @@ def test_cli_with_quarto_project_writes_graph_and_viewer(tmp_path):
     for name in ("paragraphic.js", "paragraphic-local.js", "paragraphic.css"):
         assert (out / name).is_file()
 
+
+
+def test_cli_as_quarto_post_render_reads_the_environment(tmp_path, monkeypatch):
+    # No settings file: the project and output directory are what Quarto sets
+    # for a post-render script, and the site URL comes from the project.
+    project = tmp_path / "src"
+    write(project, {"_quarto.yml": "project:\n  output-dir: docs\nwebsite:\n  site-url: https://example.org\n"})
+    write(project / "docs", {
+        "a.html": page('<a href="https://example.org/b.html">b</a>'),
+        "b.html": page(""),
+    })
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("QUARTO_PROJECT_DIR", str(project))
+    monkeypatch.setenv("QUARTO_PROJECT_OUTPUT_DIR", "docs")
+    monkeypatch.delenv("SITE_URL", raising=False)
+    main(["build", "--preset", "quarto", "--colours", "2", "--uncoloured", "X", "--uncoloured", "Y"])
+    g = json.loads((project / "docs" / "graph.json").read_text())
+    assert edges(g) == {("a.html", "b.html"): 1}
+    assert g["colours"] == 2
+
+
+def test_cli_flags_override_the_file(tmp_path):
+    write(tmp_path / "site", {
+        "a/x.html": page("", title="X"),
+        "b/y.html": page('<a href="../a/x.html">x</a>', title="Y"),
+    })
+    (tmp_path / "paragraphic.toml").write_text('output-dir = "site"\npreset = "quarto"\ncolours = 3\n')
+    main(["build", "-c", str(tmp_path / "paragraphic.toml"), "--colours", "5", "--groups", "directories"])
+    g = json.loads((tmp_path / "site" / "graph.json").read_text())
+    assert g["colours"] == 5
+    assert g["groups"] == ["a", "b"]
+
+
+def test_cli_rejects_an_unknown_level(tmp_path):
+    write(tmp_path, {"a.html": page("")})
+    with pytest.raises(SystemExit, match="level"):
+        main(["build", str(tmp_path), "--preset", "quarto", "--groups", "directories", "--level", "0"])
+
+
+def test_directory_groups_by_level_named_by_their_index(tmp_path):
+    write(tmp_path, {
+        "index.html": titled("Home"),
+        "HPC/index.html": titled("High-performance computing"),
+        "HPC/b.html": titled("B"),
+        "HPC/series/index.html": titled("The series"),
+        "HPC/series/c.html": titled("C"),
+        "math/d.html": titled("D"),
+    })
+    nodes = lambda g: {n["id"]: n["categories"] for n in g["nodes"]}
+    one = graph(tmp_path, groups="directories")
+    assert nodes(one) == {
+        "index.html": [],
+        "HPC/index.html": ["High-performance computing"],
+        "HPC/b.html": ["High-performance computing"],
+        "HPC/series/index.html": ["High-performance computing"],
+        "HPC/series/c.html": ["High-performance computing"],
+        "math/d.html": ["math"],
+    }
+    assert one["groups"] == ["High-performance computing", "math"]
+    two = graph(tmp_path, groups="directories", level=2)
+    assert nodes(two)["HPC/b.html"] == ["High-performance computing"]
+    assert nodes(two)["HPC/series/c.html"] == ["The series"]
+    assert nodes(two)["HPC/series/index.html"] == ["The series"]
+    assert graph(tmp_path, groups="directories", uncoloured=["math"])["groups"] == ["High-performance computing"]
+
+
+def test_directory_groups_with_the_same_title_keep_their_paths(tmp_path):
+    write(tmp_path, {
+        "a/index.html": titled("Notes"),
+        "b/index.html": titled("Notes"),
+        "c/index.html": titled("Other"),
+    })
+    g = graph(tmp_path, groups="directories")
+    assert {n["id"]: n["categories"] for n in g["nodes"]} == {
+        "a/index.html": ["a"], "b/index.html": ["b"], "c/index.html": ["Other"]}
+
+
+def test_directory_groups_replace_categories(tmp_path):
+    write(tmp_path, {"a/x.html": page('<span class="quarto-category">Math</span>')})
+    assert graph(tmp_path)["nodes"][0]["categories"] == ["Math"]
+    assert graph(tmp_path, groups="directories")["nodes"][0]["categories"] == ["a"]
+
+
+def test_unknown_groups_are_rejected(tmp_path):
+    with pytest.raises(ValueError, match="groups"):
+        Config(output_dir=tmp_path, groups="folders")
 
 
 def test_quarto_project_merges_default_profiles(tmp_path):

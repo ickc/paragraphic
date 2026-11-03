@@ -10,7 +10,8 @@
 // URL and does nothing on a page that is not one. The card goes first in the
 // margin (`data-margin`, default Quarto's #quarto-margin-sidebar) while the
 // margin is shown, and otherwise at the end of the article (`data-after`,
-// default `main`). It lists the pages this one links, is linked from, or
+// default `main`). `data-src` (default graph.json beside this script) and
+// `data-page` (default graph.html beside the graph) are relative to the page. It lists the pages this one links, is linked from, or
 // shares a source with, and draws them around it; pointing at a dot names it.
 // The card is a fold, open at first, with each list a fold inside it, closed. The graph enlarges into the full
 // viewer, centred on the page, in a dialog. Plain DOM and SVG: d3 and
@@ -66,7 +67,10 @@
   }
 
   async function start() {
-    const src = new URL(script.dataset.src || "graph.json", script.src);
+    // data-src and data-page are relative to the page, as an href is; without
+    // them, graph.json is beside this script and the graph page beside it.
+    const src = script.dataset.src ? new URL(script.dataset.src, document.baseURI)
+      : new URL("graph.json", script.src);
     // This page's path below graph.json's directory.
     const base = new URL(".", src).pathname;
     const path = decodeURIComponent(location.pathname);
@@ -274,7 +278,8 @@
         const root = el("div", { class: "paragraphic paragraphic-in-dialog" });
         dialog = el("dialog", { class: "paragraphic-dialog", "aria-label": "Graph of " + self.title },
           el("div", { class: "paragraphic-dialog-head" },
-            el("a", { href: new URL(script.dataset.page || "graph.html", src).href + "#post=" + encodeURIComponent(id) },
+            el("a", { href: (script.dataset.page ? new URL(script.dataset.page, document.baseURI)
+              : new URL("graph.html", src)).href + "#post=" + encodeURIComponent(id) },
               "Open the full graph"),
             el("button", {
               type: "button", class: "paragraphic-dialog-close", "aria-label": "Close",

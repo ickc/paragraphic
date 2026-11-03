@@ -14,7 +14,7 @@ import tomllib
 from importlib.resources import files
 from pathlib import Path
 
-from .extract import PRESETS, Config, build_graph, selectors_from
+from .extract import GROUPS, PRESETS, Config, build_graph, selectors_from
 
 VIEWER = ("paragraphic.js", "paragraphic-local.js", "paragraphic.css")
 
@@ -62,16 +62,35 @@ def load_config(path: Path | None, args: argparse.Namespace) -> tuple[Config, Pa
         raw = tomllib.loads(path.read_text(encoding="utf-8"))
         root = path.parent
 
+    # Run as a Quarto post-render script, the project and its output directory
+    # come from the environment Quarto sets, so a site needs no settings file.
+    # They are only fallbacks: the preset is still chosen explicitly.
+    env_project = os.environ.get("QUARTO_PROJECT_DIR")
+    env_output = os.environ.get("QUARTO_PROJECT_OUTPUT_DIR")
+
     derived: dict = {}
     if raw.get("quarto-project"):
         derived = quarto_project(root / raw["quarto-project"])
         raw.setdefault("preset", "quarto")
+    elif env_project:
+        try:
+            derived = quarto_project(Path(env_project))
+        except ImportError:
+            print("paragraphic: install paragraphic[quarto] to read site-url from the Quarto project",
+                  file=sys.stderr)
 
-    output_dir = args.output_dir or (
-        root / raw["output-dir"] if "output-dir" in raw else derived.get("output-dir")
-    )
+    if args.output_dir:
+        output_dir = args.output_dir
+    elif "output-dir" in raw:
+        output_dir = root / raw["output-dir"]
+    elif env_output:
+        # Relative to the project, as Quarto gives it.
+        output_dir = Path(env_project or ".") / env_output
+    else:
+        output_dir = derived.get("output-dir")
     if output_dir is None:
-        sys.exit("paragraphic: no output directory: pass one, or set output-dir or quarto-project")
+        sys.exit("paragraphic: no output directory: pass one, set output-dir or quarto-project,"
+                 " or run as a Quarto post-render script")
     site_url = (args.site_url or os.environ.get("SITE_URL")
                 or raw.get("site-url") or derived.get("site-url"))
     preset = args.preset or raw.get("preset", "pandoc")
@@ -79,9 +98,11 @@ def load_config(path: Path | None, args: argparse.Namespace) -> tuple[Config, Pa
         output_dir=Path(output_dir),
         selectors=selectors_from(preset, raw.get("selectors", {})),
         site_url=site_url,
-        index=raw.get("index"),
-        uncoloured=list(raw.get("uncoloured", [])),
-        colours=int(raw.get("colours", 7)),
+        index=args.index or raw.get("index"),
+        uncoloured=list(args.uncoloured or raw.get("uncoloured", [])),
+        colours=int(args.colours if args.colours is not None else raw.get("colours", 7)),
+        groups=args.groups or raw.get("groups", "categories"),
+        level=int(args.level if args.level is not None else raw.get("level", 1)),
     )
     out = Path(output_dir) / (args.out or raw.get("out", "graph.json"))
     return config, out
@@ -99,18 +120,29 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     build = sub.add_parser("build", help="write graph.json and the viewer into the output directory")
     build.add_argument("output_dir", nargs="?", type=Path,
-                       help="the rendered site (default: from the config)")
+                       help="the rendered site (default: from the config, or $QUARTO_PROJECT_OUTPUT_DIR)")
     build.add_argument("-c", "--config", type=Path, help="a paragraphic.toml")
     build.add_argument("--preset", choices=sorted(PRESETS))
     build.add_argument("--site-url", help="absolute links to it are internal (default: $SITE_URL)")
     build.add_argument("--out", help="the graph's path in the output directory (default: graph.json)")
+    build.add_argument("--index", help="the page whose links are the nodes (default: every page)")
+    build.add_argument("--groups", choices=GROUPS,
+                       help="what colours a page: its categories (the default), or its directory")
+    build.add_argument("--level", type=int,
+                       help="with --groups directories, how many directories deep a group is (default: 1)")
+    build.add_argument("--colours", type=int, help="how many groups are coloured at first (default: 7)")
+    build.add_argument("--uncoloured", action="append", metavar="GROUP",
+                       help="a group never coloured; repeat for more")
     build.add_argument("--no-viewer", action="store_true",
                        help="do not copy paragraphic.js and paragraphic.css next to the graph")
     build.add_argument("-v", "--verbose", action="store_true",
                        help="also list the pages with no links in or out")
     args = parser.parse_args(argv)
 
-    config, out = load_config(args.config, args)
+    try:
+        config, out = load_config(args.config, args)
+    except ValueError as err:
+        sys.exit(f"paragraphic: {err}")
     try:
         graph = build_graph(config)
     except FileNotFoundError as err:

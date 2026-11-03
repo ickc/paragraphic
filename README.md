@@ -9,8 +9,19 @@ there are presets for pandoc's default template and for Quarto. It is a post-pro
 means changing the preset, not the tool.
 
 ```sh
+pip install paragraphic             # or paragraphic[quarto], to read a Quarto project's _quarto.yml
 paragraphic build path/to/rendered/site     # pandoc preset, every page is a node
 paragraphic build -c paragraphic.toml       # settings from a file
+```
+
+In Quarto, it is a post-render script, which needs no settings file: the project and its output directory come from
+the `QUARTO_PROJECT_DIR` and `QUARTO_PROJECT_OUTPUT_DIR` Quarto sets, and the site URL from the project's
+`_quarto.yml` (with the `quarto` extra).
+
+```yaml
+project:
+  post-render:
+    - paragraphic build --preset quarto --groups directories
 ```
 
 `build` writes `graph.json` into the site, with `paragraphic.js` and `paragraphic.css` beside it, and prints how many
@@ -56,12 +67,24 @@ quarto-project = "src"       # read output-dir and website.site-url from its _qu
 # site-url = "https://example.org"   # $SITE_URL and --site-url override it
 index = "index.html"         # the page whose links are the nodes
 out = "graph.json"
-colours = 7                  # how many categories are coloured at first
-uncoloured = ["Talk"]        # categories never coloured
+groups = "categories"        # or "directories": what colours a page
+level = 1                    # with "directories", how deep a group is
+colours = 7                  # how many groups are coloured at first
+uncoloured = ["Talk"]        # groups never coloured
 
 [selectors]                  # override any of the preset's
 content = "main"
 ```
+
+Each key but `selectors`, `quarto-project` and `site-url` has a flag of the same name (`--uncoloured` once per group),
+which takes precedence. Without a file, `output-dir` and `quarto-project` fall back to `$QUARTO_PROJECT_OUTPUT_DIR`
+and `$QUARTO_PROJECT_DIR`; the preset never does, so it is always named.
+
+**Groups.** A page is coloured by its categories, or, with `groups = "directories"`, for a site that has none, by the
+directory it is in, cut to its first `level` parts: at level 1, `HPC/series/a.html` and `HPC/b.html` are both in
+`HPC`; at level 2, the first is in `HPC/series`. A group is named by the title of its directory's `index.html`, or else
+by its path, and a page at the top of the site is in none. The group takes the place of the page's categories in
+`graph.json`, so the viewer is the same either way.
 
 | Selector     | pandoc                                | quarto                               |
 | ------------ | ------------------------------------- | ------------------------------------ |
@@ -115,10 +138,10 @@ on every page (in Quarto, a project-level `include-after-body`). The script find
 its URL, and does nothing on a page that is not one. It adds a "Graph view" fold, open at first, with the lists folded
 inside it, closed at first. Each fold is remembered in the reader's browser.
 
-Everything else it loads (`graph.json`, the graph page, `paragraphic.js`) is found relative to the script's own URL,
-`data-src` included, so the paths above are the only ones that assume the site is at the root of its host. A site that
-is also served under a path loads the two files relative to the page instead, and leaves `data-src` to its default: in
-Quarto, whose pages carry their offset to the site root in `<meta name="quarto:offset">`, on `DOMContentLoaded`, so
+`data-src` (the graph) and `data-page` (the full graph page) are relative to the page, like an `href`. Without them,
+`graph.json` is beside the script and `graph.html` beside the graph, and `paragraphic.js` is always beside the script.
+So the paths above are the only ones that assume the site is at the root of its host. A site that is also served under
+a path loads the two files relative to the page instead: in Quarto, whose pages carry their offset to the site root in `<meta name="quarto:offset">`, on `DOMContentLoaded`, so
 after `quarto-nav.js` has rewritten the page's links (it throws on an SVG link, such as the card's dots, if it finds
 one already there),
 

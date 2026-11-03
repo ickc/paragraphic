@@ -15,7 +15,7 @@ from __future__ import annotations
 import posixpath
 from collections import Counter
 from dataclasses import dataclass, field, fields, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urljoin, urlsplit
 
 from bs4 import BeautifulSoup, Tag
@@ -68,6 +68,10 @@ PRESETS: dict[str, Selectors] = {
 }
 
 
+# What colours a page: its categories, or the directory it is in.
+GROUPS = ("categories", "directories")
+
+
 @dataclass
 class Config:
     output_dir: Path
@@ -82,6 +86,18 @@ class Config:
     uncoloured: list[str] = field(default_factory=list)
     # How many categories the viewer colours at first; the reader can change it.
     colours: int = 7
+    # "directories": a page's group is its directory, cut to the first `level`
+    # parts (HPC/series/a.html is HPC at level 1, HPC/series at 2), named by
+    # the title of that directory's index.html. It stands in for the page's
+    # categories in the graph, for a site that has none.
+    groups: str = "categories"
+    level: int = 1
+
+    def __post_init__(self):
+        if self.groups not in GROUPS:
+            raise ValueError(f"groups must be one of {', '.join(GROUPS)}, not {self.groups!r}")
+        if self.level < 1:
+            raise ValueError(f"level must be at least 1, not {self.level}")
 
 
 @dataclass
@@ -243,6 +259,10 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
         out |= {f"cite:{work_of_url[u]}" if u in work_of_url else f"url:{u}" for u in page.external}
         return sorted(out)
 
+    categories = {p: pages[p].categories for p in nodes}
+    if config.groups == "directories":
+        categories = directory_groups(pages, nodes, config.level)
+
     counts: Counter[tuple[str, str]] = Counter()
     for p in sorted(nodes):
         for target in pages[p].links:
@@ -255,7 +275,7 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
         # Every category that can be coloured, most pages first, so the
         # viewer colours the first `colours` of them.
         "groups": [c for c, _ in sorted(
-            Counter(c for p in nodes for c in pages[p].categories
+            Counter(c for p in nodes for c in categories[p]
                     if c not in config.uncoloured).items(),
             key=lambda item: (-item[1], item[0]))],
         "colours": config.colours,
@@ -264,7 +284,7 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
                 "id": p,
                 "title": pages[p].title or p,
                 "date": pages[p].date,
-                "categories": pages[p].categories,
+                "categories": categories[p],
                 "citations": pages[p].citations,
                 "external": pages[p].external,
                 "sources": sources(pages[p]),
@@ -275,6 +295,23 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
             {"source": s, "target": t, "count": n} for (s, t), n in sorted(counts.items())
         ],
     }
+
+
+def directory_groups(pages: dict[str, Page], nodes: set[str], level: int) -> dict[str, list[str]]:
+    """Each node's group, as its one category: its directory, to `level` parts.
+
+    A group is named by the title of its directory's index.html, or else by
+    its path; two groups that would share a name both keep their paths. A
+    page at the top of the site has no group.
+    """
+    group = {p: "/".join(PurePosixPath(p).parent.parts[:level]) for p in nodes}
+    names = {}
+    for d in set(group.values()) - {""}:
+        index = pages.get(f"{d}/index.html")
+        names[d] = (index.title if index and index.title else "") or d
+    shared = Counter(names.values())
+    names = {d: n if shared[n] == 1 else d for d, n in names.items()}
+    return {p: [names[d]] if d else [] for p, d in group.items()}
 
 
 def selectors_from(preset: str, overrides: dict[str, str]) -> Selectors:

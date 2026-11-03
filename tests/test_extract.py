@@ -211,6 +211,24 @@ def test_directory_groups_replace_categories(tmp_path):
     assert graph(tmp_path, groups="directories")["nodes"][0]["categories"] == ["a"]
 
 
+def test_excluded_pages_and_the_graph_page_are_not_nodes(tmp_path):
+    write(tmp_path, {
+        "a.html": page('<a href="graph.html">graph</a> <a href="b.html">b</a>'),
+        "b.html": page(""),
+        "404.html": page('<a href="a.html">home</a>'),
+        "graph.html": page('<div class="paragraphic" data-src="graph.json"></div>'),
+    })
+    g = graph(tmp_path, exclude=["404.html"])
+    assert [n["id"] for n in g["nodes"]] == ["a.html", "b.html"]
+    assert edges(g) == {("a.html", "b.html"): 1}
+
+
+def test_cli_exclude(tmp_path):
+    write(tmp_path, {"a.html": page(""), "x/404.html": page("")})
+    main(["build", str(tmp_path), "--preset", "quarto", "--exclude", "*404.html"])
+    assert [n["id"] for n in json.loads((tmp_path / "graph.json").read_text())["nodes"]] == ["a.html"]
+
+
 def test_unknown_groups_are_rejected(tmp_path):
     with pytest.raises(ValueError, match="groups"):
         Config(output_dir=tmp_path, groups="folders")

@@ -30,7 +30,8 @@ pages have no links in or out (`-v` lists them).
 ## The graph
 
 - **Nodes** are pages: those linked from the `index` page (`selectors.index_links`), or, without an index, every page
-  that has a `selectors.content` element. A draft or an unlisted page is not on the index, so it is not a node.
+  that has a `selectors.content` element, less those matching `exclude` and the page that draws the full graph (one
+  with a `.paragraphic[data-src]`). A draft or an unlisted page is not on the index, so it is not a node.
 - **Links** are the `<a href>`s inside a node's `content` element that resolve to another node, counted. Links in the
   navigation, footer and listings are outside it. Absolute links to `site-url` count as internal.
 - **One document, several renderings.** A page lists its other renderings (the slides of a talk, its PDF) through
@@ -66,6 +67,7 @@ quarto-project = "src"       # read output-dir and website.site-url from its _qu
 # output-dir = "_site"       # otherwise, the rendered site
 # site-url = "https://example.org"   # $SITE_URL and --site-url override it
 index = "index.html"         # the page whose links are the nodes
+exclude = ["404.html"]       # pages that are never nodes (globs on their paths)
 out = "graph.json"
 groups = "categories"        # or "directories": what colours a page
 level = 1                    # with "directories", how deep a group is

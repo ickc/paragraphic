@@ -115,6 +115,26 @@ on every page (in Quarto, a project-level `include-after-body`). The script find
 its URL, and does nothing on a page that is not one. It adds a "Graph view" fold, open at first, with the lists folded
 inside it, closed at first. Each fold is remembered in the reader's browser.
 
+Everything else it loads (`graph.json`, the graph page, `paragraphic.js`) is found relative to the script's own URL,
+so the paths above are the only ones that assume the site is at the root of its host. A site that is also served
+under a path loads the two files relative to the page instead: in Quarto, whose pages carry their offset to the
+site root in `<meta name="quarto:offset">`,
+
+```html
+<script>
+  (function () {
+    const root = document.querySelector('meta[name="quarto:offset"]')?.content ?? "/";
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = root + "paragraphic.css";
+    const js = document.createElement("script");
+    js.src = root + "paragraphic-local.js";
+    js.dataset.src = root + "graph.json";
+    document.head.append(css, js);
+  })();
+</script>
+```
+
 - The picture: the page with the pages it links, is linked from, or shares a source with (dashed) around it, in the
   same colours as the full graph. Arrows show which way a link goes, and faint lines the links between the neighbours
   themselves. Pointing at a dot names it under the picture, with how it is linked, and marks it in the lists; pointing

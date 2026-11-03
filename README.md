@@ -51,7 +51,7 @@ All keys are optional. Paths are relative to the file.
 
 ```toml
 preset = "quarto"            # or "pandoc" (the default)
-quarto-project = "src"       # read output-dir and website.site-url from its _quarto.yml
+quarto-project = "src"       # read output-dir and website.site-url from its _quarto.yml (and default profiles)
 # output-dir = "_site"       # otherwise, the rendered site
 # site-url = "https://example.org"   # $SITE_URL and --site-url override it
 index = "index.html"         # the page whose links are the nodes

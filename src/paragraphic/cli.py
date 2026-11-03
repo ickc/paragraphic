@@ -20,13 +20,36 @@ VIEWER = ("paragraphic.js", "paragraphic-local.js", "paragraphic.css")
 
 
 def quarto_project(directory: Path) -> dict:
-    """output-dir and site-url from a Quarto project's _quarto.yml."""
+    """output-dir and site-url from a Quarto project's configuration.
+
+    That is _quarto.yml with, merged on top as Quarto does, the profiles it
+    activates when none is given: `profile.default`, and the first profile of
+    each `profile.group` (as a site sharing ickc/quarto-template keeps its own
+    settings in _quarto-site.yml).
+    """
     import yaml
 
-    data = yaml.safe_load((directory / "_quarto.yml").read_text(encoding="utf-8")) or {}
-    project = data.get("project") or {}
+    def load(name: str) -> dict:
+        path = directory / name
+        if not path.is_file():
+            return {}
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+    data = load("_quarto.yml")
+    profile = data.get("profile") or {}
+    default = profile.get("default") or []
+    names = [default] if isinstance(default, str) else list(default)
+    names += [group[0] for group in profile.get("group") or [] if group]
+
+    project = dict(data.get("project") or {})
+    website = dict(data.get("website") or {})
+    for name in names:
+        extra = load(f"_quarto-{name}.yml")
+        project.update(extra.get("project") or {})
+        website.update(extra.get("website") or {})
+
     out = {"output-dir": directory / project.get("output-dir", "_site")}
-    site_url = (data.get("website") or {}).get("site-url")
+    site_url = website.get("site-url")
     if site_url:
         out["site-url"] = site_url
     return out

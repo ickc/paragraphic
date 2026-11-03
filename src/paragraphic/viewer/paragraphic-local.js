@@ -257,6 +257,9 @@
         if (inMargin) target.prepend(card); else target.append(card);
       }
       card.classList.toggle("paragraphic-local-in-margin", inMargin);
+      // Quarto sends a margin that was empty when rendered behind the page (z-index -1), where the card would
+      // show but not take a click.
+      if (inMargin) target.classList.remove("zindex-bottom");
     };
     place();
     let wide = window.innerWidth;

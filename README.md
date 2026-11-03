@@ -116,9 +116,9 @@ its URL, and does nothing on a page that is not one. It adds a "Graph view" fold
 inside it, closed at first. Each fold is remembered in the reader's browser.
 
 Everything else it loads (`graph.json`, the graph page, `paragraphic.js`) is found relative to the script's own URL,
-so the paths above are the only ones that assume the site is at the root of its host. A site that is also served
-under a path loads the two files relative to the page instead: in Quarto, whose pages carry their offset to the
-site root in `<meta name="quarto:offset">`,
+`data-src` included, so the paths above are the only ones that assume the site is at the root of its host. A site that
+is also served under a path loads the two files relative to the page instead, and leaves `data-src` to its default: in
+Quarto, whose pages carry their offset to the site root in `<meta name="quarto:offset">`,
 
 ```html
 <script>
@@ -129,7 +129,6 @@ site root in `<meta name="quarto:offset">`,
     css.href = root + "paragraphic.css";
     const js = document.createElement("script");
     js.src = root + "paragraphic-local.js";
-    js.dataset.src = root + "graph.json";
     document.head.append(css, js);
   })();
 </script>

@@ -118,11 +118,13 @@ inside it, closed at first. Each fold is remembered in the reader's browser.
 Everything else it loads (`graph.json`, the graph page, `paragraphic.js`) is found relative to the script's own URL,
 `data-src` included, so the paths above are the only ones that assume the site is at the root of its host. A site that
 is also served under a path loads the two files relative to the page instead, and leaves `data-src` to its default: in
-Quarto, whose pages carry their offset to the site root in `<meta name="quarto:offset">`,
+Quarto, whose pages carry their offset to the site root in `<meta name="quarto:offset">`, on `DOMContentLoaded`, so
+after `quarto-nav.js` has rewritten the page's links (it throws on an SVG link, such as the card's dots, if it finds
+one already there),
 
 ```html
 <script>
-  (function () {
+  document.addEventListener("DOMContentLoaded", function () {
     const root = document.querySelector('meta[name="quarto:offset"]')?.content ?? "/";
     const css = document.createElement("link");
     css.rel = "stylesheet";
@@ -130,7 +132,7 @@ Quarto, whose pages carry their offset to the site root in `<meta name="quarto:o
     const js = document.createElement("script");
     js.src = root + "paragraphic-local.js";
     document.head.append(css, js);
-  })();
+  });
 </script>
 ```
 

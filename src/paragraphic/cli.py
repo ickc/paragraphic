@@ -103,6 +103,7 @@ def load_config(path: Path | None, args: argparse.Namespace) -> tuple[Config, Pa
         colours=int(args.colours if args.colours is not None else raw.get("colours", 7)),
         groups=args.groups or raw.get("groups", "categories"),
         level=int(args.level if args.level is not None else raw.get("level", 1)),
+        exclude=list(args.exclude or raw.get("exclude", [])),
     )
     out = Path(output_dir) / (args.out or raw.get("out", "graph.json"))
     return config, out
@@ -126,6 +127,8 @@ def main(argv: list[str] | None = None) -> None:
     build.add_argument("--site-url", help="absolute links to it are internal (default: $SITE_URL)")
     build.add_argument("--out", help="the graph's path in the output directory (default: graph.json)")
     build.add_argument("--index", help="the page whose links are the nodes (default: every page)")
+    build.add_argument("--exclude", action="append", metavar="GLOB",
+                       help="pages that are never nodes, by path (e.g. 404.html); repeat for more")
     build.add_argument("--groups", choices=GROUPS,
                        help="what colours a page: its categories (the default), or its directory")
     build.add_argument("--level", type=int,

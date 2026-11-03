@@ -13,6 +13,7 @@ pandoc's own template and for Quarto.
 from __future__ import annotations
 
 import posixpath
+from fnmatch import fnmatchcase
 from collections import Counter
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path, PurePosixPath
@@ -92,6 +93,8 @@ class Config:
     # categories in the graph, for a site that has none.
     groups: str = "categories"
     level: int = 1
+    # Pages that are never nodes, as glob patterns on their paths (404.html).
+    exclude: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         if self.groups not in GROUPS:
@@ -113,6 +116,8 @@ class Page:
     alternates: list[str] = field(default_factory=list)
     links: list[str] = field(default_factory=list)
     has_content: bool = False
+    # It draws the full graph (a `.paragraphic[data-src]`): never a node.
+    is_viewer: bool = False
 
 
 def _value(el: Tag) -> str:
@@ -183,6 +188,7 @@ def read_page(path: str, html: str, selectors: Selectors, resolve: Resolver) -> 
     page = Page(path=path)
     content = soup.select_one(selectors.content) if selectors.content else soup
     page.has_content = content is not None
+    page.is_viewer = soup.select_one(".paragraphic[data-src]") is not None
     page.title = _first(soup, selectors.title)
     page.date = _first(soup, selectors.date)
     page.categories = _values(soup, selectors.categories)
@@ -236,7 +242,8 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
         ids = [p for p in dict.fromkeys(listed) if p in pages and pages[p].has_content]
     else:
         ids = [p for p, page in pages.items() if page.has_content]
-    nodes = set(ids)
+    nodes = {p for p in ids if not pages[p].is_viewer
+             and not any(fnmatchcase(p, pattern) for pattern in config.exclude)}
 
     # Every rendering of a node stands for the node. A page that is a node in
     # its own right keeps its identity.

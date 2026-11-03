@@ -1,0 +1,14 @@
+# Actions are pinned to commit SHAs with the version as a trailing comment,
+# which Dependabot keeps in step. A release is taken only once it is 7 days
+# old (as in ickc/quarto-template's shared dependabot.yml).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

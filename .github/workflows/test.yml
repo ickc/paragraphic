@@ -1,0 +1,45 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # requires-python in pyproject.toml, to the newest
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: uv run --python ${{ matrix.python }} --extra quarto --with pytest pytest -q tests
+
+  # what the release workflow publishes: build it, and check the wheel has the
+  # viewer and a working command
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: uv build
+      - run: |
+          uv venv
+          uv pip install dist/*.whl
+          for f in paragraphic.js paragraphic-local.js paragraphic.css; do
+            .venv/bin/python -c "from importlib.resources import files; assert (files('paragraphic') / 'viewer' / '$f').is_file()"
+          done
+          mkdir -p site && echo '<html><body><a href="b.html">b</a></body></html>' > site/a.html && cp site/a.html site/b.html
+          .venv/bin/paragraphic build site
+          test -s site/graph.json -a -s site/paragraphic-local.js

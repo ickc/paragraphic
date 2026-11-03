@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from paragraphic import PRESETS, Config, build_graph
-from paragraphic.cli import main
+from paragraphic.cli import main, quarto_project
 
 
 def page(body, head="", title="T", main=True):
@@ -124,6 +124,17 @@ def test_cli_with_quarto_project_writes_graph_and_viewer(tmp_path):
     for name in ("paragraphic.js", "paragraphic-local.js", "paragraphic.css"):
         assert (out / name).is_file()
 
+
+
+def test_quarto_project_merges_default_profiles(tmp_path):
+    # As a site sharing ickc/quarto-template: its own settings in the `site`
+    # profile, the first of a group, which Quarto activates by default.
+    project = tmp_path / "src"
+    write(project, {
+        "_quarto.yml": "profile:\n  group:\n    - [site]\nproject:\n  type: website\n",
+        "_quarto-site.yml": "project:\n  output-dir: docs\nwebsite:\n  site-url: https://example.org\n",
+    })
+    assert quarto_project(project) == {"output-dir": project / "docs", "site-url": "https://example.org"}
 
 def test_output_is_deterministic(tmp_path):
     write(tmp_path, {"b.html": page('<a href="a.html">a</a>'), "a.html": page('<a href="b.html">b</a>')})

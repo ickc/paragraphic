@@ -100,15 +100,32 @@
       : s.slice(4).replace(/^https?:\/\//, "");
     const sourcePairs = [];
     const sharing = new Map(posts.map((p) => [p.id, []]));
-    for (let i = 0; i < posts.length; i++) {
-      for (let j = i + 1; j < posts.length; j++) {
-        const shared = posts[i].sources.filter((c) => posts[j].sources.includes(c));
-        if (shared.length && !linkPairs.has(pairKey(posts[i].id, posts[j].id))) {
-          sourcePairs.push({ a: posts[i].id, b: posts[j].id, shared });
-          sharing.get(posts[i].id).push(posts[j]);
-          sharing.get(posts[j].id).push(posts[i]);
-        }
+    // From each source to the posts that have it, so only posts that share
+    // one are paired: the cost is the pairs found, not every pair of posts.
+    // Pairs in post order, as (i, j) with i < j, and each pair's sources in
+    // the order of the first post's.
+    const bySource = new Map();
+    posts.forEach((p, i) => {
+      for (const s of new Set(p.sources)) {
+        if (!bySource.has(s)) bySource.set(s, []);
+        bySource.get(s).push(i);
       }
+    });
+    const n = posts.length;
+    const found = new Set();
+    for (const ps of bySource.values()) {
+      for (let x = 0; x < ps.length; x++) {
+        for (let y = x + 1; y < ps.length; y++) found.add(ps[x] * n + ps[y]);
+      }
+    }
+    for (const k of [...found].sort((u, v) => u - v)) {
+      const i = Math.floor(k / n), j = k % n;
+      if (linkPairs.has(pairKey(posts[i].id, posts[j].id))) continue;
+      const theirs = new Set(posts[j].sources);
+      const shared = posts[i].sources.filter((c) => theirs.has(c));
+      sourcePairs.push({ a: posts[i].id, b: posts[j].id, shared });
+      sharing.get(posts[i].id).push(posts[j]);
+      sharing.get(posts[j].id).push(posts[i]);
     }
     const categories = [...new Set(posts.flatMap((p) => p.categories))].sort();
     // data.groups is every colourable category, most posts first. A

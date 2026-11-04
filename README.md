@@ -33,11 +33,15 @@ pages have no links in or out (`-v` lists them).
   that has a `selectors.content` element, less those matching `exclude` and the page that draws the full graph (one
   with a `.paragraphic[data-src]`). A draft or an unlisted page is not on the index, so it is not a node.
 - **Links** are the `<a href>`s inside a node's `content` element that resolve to another node, counted. Links in the
-  navigation, footer and listings are outside it. Absolute links to `site-url` count as internal.
+  navigation, footer and listings are outside it, and links inside it that are navigation all the same
+  (`selectors.ignore`: Quarto's breadcrumbs) are left out. Absolute links to `site-url` count as internal.
 - **One document, several renderings.** A page lists its other renderings (the slides of a talk, its PDF) through
   `selectors.alternates`, and a link to any of them is a link to the page. The page itself stays the node.
 - Each node carries its `title`, `date` and `categories`, and what it draws on:
-  - `citations`: the keys of its bibliography entries (pandoc citeproc's `ref-<key>` ids);
+  - `citations`: the keys of its bibliography entries (pandoc citeproc's `ref-<key>` ids), and of the citations it
+    links to (`selectors.citation_links`, `#ref-<key>`) on another page of the site, for a site with one bibliography
+    for every page. A link to that page is still a link to it: `exclude` it, so it is not a node every page links to;
+    its entries' URLs still stand for its works;
   - `external`: its links off the site, without their `#fragment`, and otherwise exactly as written apart from the
     case of the scheme and host. Links inside the bibliography (`selectors.bibliography`) are left out, since the
     citations stand for them;
@@ -97,6 +101,8 @@ by its path, and a page at the top of the site is in none. The group takes the p
 | `alternates` | none                                  | `.quarto-alternate-formats a`        |
 | `citations`  | `#refs .csl-entry[id^=ref-]`          | same                                 |
 | `bibliography` | `#refs`                             | same                                 |
+| `citation_links` | `a[href*="#ref-"]`                | same                                 |
+| `ignore`     | none                                  | `.quarto-page-breadcrumbs`           |
 | `index_links`| `a`                                   | `.quarto-listing .listing-title a`   |
 
 A selector that matches a `<meta>` reads its `content`, split on commas; anything else, its text.

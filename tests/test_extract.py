@@ -2,6 +2,7 @@
 # Copyright (C) 2026 Kolen Cheung
 # SPDX-License-Identifier: AGPL-3.0-or-later
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -311,3 +312,73 @@ def test_palette_prefixes_stay_apart_and_match_the_css():
     assert prefix_min(PALETTE, 12) > 12
     assert greedy_order(TABLEAU_20) == PALETTE
     assert css() in (files("paragraphic") / "viewer" / "paragraphic.css").read_text()
+
+
+def test_quarto_breadcrumbs_are_not_links_but_the_title_block_is_read(tmp_path):
+    crumbs = ('<header id="title-block-header"><nav class="quarto-page-breadcrumbs">'
+              '<ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Part</a></li>'
+              '</ol></nav><h1 class="title">A</h1>'
+              '<div class="abstract"><a href="b.html">companion</a></div></header>')
+    write(tmp_path, {
+        "part/index.html": page(""),
+        "part/a.html": page(crumbs),
+        "part/b.html": page(""),
+    })
+    g = graph(tmp_path)
+    assert edges(g) == {("part/a.html", "part/b.html"): 1}
+    assert {n["id"]: n["title"] for n in g["nodes"]}["part/a.html"] == "A"
+
+
+def test_ignore_is_a_selector(tmp_path):
+    write(tmp_path, {
+        "a.html": page('<aside class="see"><a href="b.html">b</a></aside><a href="c.html">c</a>'),
+        "b.html": page(""),
+        "c.html": page(""),
+    })
+    selectors = replace(PRESETS["quarto"], ignore=".see")
+    g = build_graph(Config(output_dir=tmp_path, selectors=selectors))
+    assert edges(g) == {("a.html", "c.html"): 1}
+
+
+def test_links_to_a_shared_bibliography_are_citations(tmp_path):
+    bibliography = ('<div id="refs"><div class="csl-entry" id="ref-naur1985">Naur. '
+                    '<a href="https://doi.org/10.1/naur">doi</a></div>'
+                    '<div class="csl-entry" id="ref-knuth1984">Knuth</div></div>')
+    write(tmp_path, {
+        "references.html": page(bibliography),
+        "a.html": page('<a href="references.html#ref-naur1985">Naur</a>'
+                       '<a href="./references.html#ref-knuth1984">Knuth</a>'),
+        "b/c.html": page('<a href="../references.html#ref-naur1985">Naur</a>'
+                         # Not a citation: another site's anchor.
+                         '<a href="https://example.org/x.html#ref-other">x</a>'),
+        # Links the work references.html lists for naur1985.
+        "d.html": page('<a href="https://doi.org/10.1/naur">Naur</a>'),
+    })
+    nodes = {n["id"]: n for n in graph(tmp_path, exclude=["references.html"])["nodes"]}
+    assert nodes["a.html"]["citations"] == ["knuth1984", "naur1985"]
+    assert nodes["b/c.html"]["citations"] == ["naur1985"]
+    assert nodes["b/c.html"]["sources"] == ["cite:naur1985", "url:https://example.org/x.html"]
+    assert nodes["d.html"]["sources"] == ["cite:naur1985"]
+    # The bibliography, a node unless excluded, is still linked.
+    assert edges(graph(tmp_path)) == {("a.html", "references.html"): 2,
+                                      ("b/c.html", "references.html"): 1}
+    assert edges(graph(tmp_path, exclude=["references.html"])) == {}
+
+
+def test_citation_links_on_the_page_add_nothing_to_its_bibliography(tmp_path):
+    write(tmp_path, {"a.html": page(
+        '<a href="#ref-naur1985">Naur</a>'
+        '<div id="refs"><div class="csl-entry" id="ref-naur1985">Naur</div></div>')})
+    [node] = graph(tmp_path)["nodes"]
+    assert node["citations"] == ["naur1985"]
+
+
+def test_only_a_bibliography_a_node_cites_from_names_its_works(tmp_path):
+    entry = ('<div id="refs"><div class="csl-entry" id="ref-draft">Draft. '
+             '<a href="https://doi.org/10.1/draft">doi</a></div></div>')
+    write(tmp_path, {
+        "draft.html": page(entry),
+        "a.html": page('<a href="https://doi.org/10.1/draft">x</a>'),
+    })
+    nodes = {n["id"]: n for n in graph(tmp_path, exclude=["draft.html"])["nodes"]}
+    assert nodes["a.html"]["sources"] == ["url:https://doi.org/10.1/draft"]

@@ -52,6 +52,14 @@ class Selectors:
     bibliography: str = "#refs"
     # On the index page: the links that are the site's posts.
     index_links: str = "a"
+    # Inside `content`, what is navigation, not the page's own text: links in
+    # it count for nothing.
+    ignore: str = ""
+    # Links to a citation, `#ref-<citekey>`: on this page, or on another one
+    # when the site has one bibliography for every page. The key is a citation
+    # of the page the link is on. A link to another page still counts as a
+    # link to it, if that page is a node.
+    citation_links: str = 'a[href*="#ref-"]'
 
 
 PRESETS: dict[str, Selectors] = {
@@ -65,6 +73,10 @@ PRESETS: dict[str, Selectors] = {
         categories=".quarto-category",
         alternates=".quarto-alternate-formats a",
         index_links=".quarto-listing .listing-title a",
+        # The breadcrumbs (website: bread-crumbs), which Quarto puts in the
+        # title block, inside <main>: they would link every page to its
+        # parent's index.
+        ignore=".quarto-page-breadcrumbs",
     ),
 }
 
@@ -115,6 +127,9 @@ class Page:
     cited_urls: dict[str, list[str]] = field(default_factory=dict)
     alternates: list[str] = field(default_factory=list)
     links: list[str] = field(default_factory=list)
+    # The other pages its citation links point at: the bibliography it cites
+    # from, when the site has one for every page.
+    bibliographies: list[str] = field(default_factory=list)
     has_content: bool = False
     # It draws the full graph (a `.paragraphic[data-src]`): never a node.
     is_viewer: bool = False
@@ -198,6 +213,9 @@ def read_page(path: str, html: str, selectors: Selectors, resolve: Resolver) -> 
             if (t := resolve(path, a.get("href", ""))) and t != path
         ]
     if content is not None:
+        if selectors.ignore:
+            for el in content.select(selectors.ignore):
+                el.decompose()
         page.links = [t for a in content.select("a[href]") if (t := resolve(path, a["href"]))]
         # By identity: a bs4 Tag hashes by serialising itself.
         bibliography = {id(el) for el in content.select(selectors.bibliography)} if selectors.bibliography else set()
@@ -211,7 +229,21 @@ def read_page(path: str, html: str, selectors: Selectors, resolve: Resolver) -> 
                 page.cited_urls[key] = sorted({
                     u for a in el.select("a[href]") if (u := resolve.external(a["href"]))
                 })
-            page.citations = sorted(page.cited_urls)
+        cited = set(page.cited_urls)
+        bibliographies = set()
+        if selectors.citation_links:
+            for a in content.select(selectors.citation_links):
+                href = a["href"].strip()
+                url = urlsplit(href)
+                if not url.fragment.startswith("ref-"):
+                    continue
+                target = None if href.startswith("#") else resolve(path, href)
+                if href.startswith("#") or target:
+                    cited.add(unquote(url.fragment).removeprefix("ref-"))
+                if target and target != path:
+                    bibliographies.add(target)
+        page.citations = sorted(cited)
+        page.bibliographies = sorted(bibliographies)
     return page
 
 
@@ -255,8 +287,12 @@ def build_graph(config: Config, pages: dict[str, Page] | None = None) -> dict:
     # Sources: the hidden nodes two posts can share. A cited work is
     # `cite:<key>`, and an external link to one of its URLs is the same work;
     # any other external link is `url:<URL>`.
+    # The nodes' bibliographies, then the pages a node cites from that are not
+    # nodes (one bibliography for every page), so no other page, a draft, has a
+    # say in them.
+    cited_from = sorted({b for p in nodes for b in pages[p].bibliographies if b in pages} - nodes)
     work_of_url: dict[str, str] = {}
-    for p in sorted(nodes):
+    for p in sorted(nodes) + cited_from:
         for key, urls in pages[p].cited_urls.items():
             for u in urls:
                 work_of_url.setdefault(u, key)
